@@ -1,17 +1,16 @@
 from pathlib import Path
-from typing import Optional
 
 from ..config.settings import Settings
-from ..core.types import MessageEvent, Reply, ConversationContext, ProviderMessage
-from ..providers.openai_ import OpenAIProvider
+from ..core.types import ConversationContext, MessageEvent, ProviderMessage, Reply
 from ..providers.anthropic_ import AnthropicProvider
+from ..providers.openai_ import OpenAIProvider
 from ..storage.base import ConversationStore
 from ..storage.sqlite import SQLiteStore
 from ..utils.logging import get_logger
 
 
 class AgentRuntime:
-    def __init__(self, settings: Settings, store: Optional[ConversationStore] = None):
+    def __init__(self, settings: Settings, store: ConversationStore | None = None):
         self.settings = settings
         self.logger = get_logger("agent")
 
@@ -87,7 +86,7 @@ class AgentRuntime:
 
     async def get_conversation_context(
         self, conversation_id: str
-    ) -> Optional[ConversationContext]:
+    ) -> ConversationContext | None:
         """Get full conversation context for debugging/analysis."""
         conversation = await self.store.get_conversation_by_id(conversation_id)
         if not conversation:

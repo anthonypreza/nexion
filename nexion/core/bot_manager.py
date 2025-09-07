@@ -1,8 +1,6 @@
-from typing import Optional, List, Dict
-
 from ..config.bridge import get_config_bridge
 from ..config.settings import Settings
-from ..config.yaml import WorkspaceConfig, BotConfig
+from ..config.yaml import BotConfig, WorkspaceConfig
 from ..core.agent import AgentRuntime
 from ..storage import ConversationStore, SQLiteStore
 
@@ -12,9 +10,9 @@ class BotManager:
         """Initialize with workspace configuration and shared storage."""
         self.workspace_config = workspace_config
         self.store = store
-        self.bots: Dict[str, AgentRuntime] = {}
-        self.http_routes: Dict[str, str] = {}
-        self.telegram_bots: Dict[str, str] = {}
+        self.bots: dict[str, AgentRuntime] = {}
+        self.http_routes: dict[str, str] = {}
+        self.telegram_bots: dict[str, str] = {}
 
     def _create_settings_for_bot(self, bot_config: BotConfig) -> Settings:
         """Convert BotConfig to Settings for AgentRuntime."""
@@ -65,20 +63,20 @@ class BotManager:
             username = channel[9:]
             self.telegram_bots[username] = bot_id
 
-    def get_bot_for_http_path(self, path: str) -> Optional[AgentRuntime]:
+    def get_bot_for_http_path(self, path: str) -> AgentRuntime | None:
         bot_id = self.http_routes.get(path)
         return self.bots.get(bot_id) if bot_id else None
 
-    def get_bot_by_id(self, bot_id: str) -> Optional[AgentRuntime]:
+    def get_bot_by_id(self, bot_id: str) -> AgentRuntime | None:
         """Get a specific bot by its ID."""
         return self.bots.get(bot_id)
 
-    def get_bot_for_telegram(self, bot_username: str) -> Optional[AgentRuntime]:
+    def get_bot_for_telegram(self, bot_username: str) -> AgentRuntime | None:
         """Get bot for Telegram username like '@supportbot'."""
         bot_id = self.telegram_bots.get(bot_username)
         return self.bots.get(bot_id) if bot_id else None
 
-    def list_bots(self) -> List[str]:
+    def list_bots(self) -> list[str]:
         """List all bot IDs for debugging/admin."""
         return list(self.bots.keys())
 
@@ -88,7 +86,7 @@ class BotManager:
 
 
 # Global bot manager instance
-_bot_manager: Optional[BotManager] = None
+_bot_manager: BotManager | None = None
 
 
 async def get_bot_manager() -> BotManager:

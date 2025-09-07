@@ -1,5 +1,5 @@
 from .base import ConversationStore
-from .sqlite import SQLiteStore
 from .models import Conversation, Message
+from .sqlite import SQLiteStore
 
 __all__ = ["ConversationStore", "SQLiteStore", "Conversation", "Message"]

@@ -1,11 +1,11 @@
 import asyncio
-from typing import Optional
 
 import httpx
 from fastapi import APIRouter
+
 from ..config.settings import Settings
-from ..core.types import MessageEvent, Channel
 from ..core.agent import AgentRuntime
+from ..core.types import Channel, MessageEvent
 from ..utils.logging import get_logger
 
 router = APIRouter()
@@ -17,7 +17,7 @@ class TelegramPollingService:
         self.settings = settings
         self.last_update_id = 0
         self.running = False
-        self.task: Optional[asyncio.Task] = None
+        self.task: asyncio.Task | None = None
 
     async def start(self):
         """Start the polling service"""
@@ -126,7 +126,7 @@ class TelegramPollingService:
 
 
 # Global polling service instance
-_polling_service: Optional[TelegramPollingService] = None
+_polling_service: TelegramPollingService | None = None
 
 
 async def start_telegram_polling(settings: Settings):

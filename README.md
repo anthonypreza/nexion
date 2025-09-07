@@ -6,12 +6,15 @@ Nexion lets you build AI-powered bots using simple YAML configuration and deploy
 
 ## ✨ Current Features
 
-- **🤖 Multi-LLM Support**: OpenAI and Anthropic integration with your API keys
-- **🌐 HTTP Chat Interface**: Built-in web UI and REST API for easy testing
+- **🤖 Multi-LLM Support**: OpenAI (GPT-4, GPT-5) and Anthropic integration with your API keys
+- **🌐 Dynamic HTTP Interfaces**: Multiple bots with individual web UIs and REST APIs
+- **🎯 Multi-Bot Architecture**: Run multiple specialized bots from a single configuration
 - **📱 Telegram Integration**: Connect to Telegram bots via polling (no webhooks needed)
-- **📝 YAML Configuration**: Simple, declarative bot configuration
+- **💾 Persistent Conversations**: SQLite-based conversation history and context
+- **📝 YAML Configuration**: Simple, declarative bot configuration with environment variable support
 - **🔧 CLI Tools**: Bootstrap projects and run development servers
-- **🎨 Custom System Prompts**: Personalize your bot's personality and behavior
+- **🎨 Custom System Prompts**: Personalize each bot's personality and behavior
+- **🔄 Pre-commit Hooks**: Automated code formatting with Ruff
 
 ## 🚀 Quick Start
 
@@ -24,6 +27,12 @@ cd nexion
 uv sync
 ```
 
+**For Contributors:**
+```bash
+uv sync --group dev  # Install development dependencies
+pre-commit install   # Set up code formatting hooks
+```
+
 ### 2. Bootstrap a New Bot Project
 
 ```bash
@@ -33,7 +42,7 @@ cd my-bot
 
 This creates:
 - `bot.yml` - Bot configuration
-- `prompts/system.md` - System prompt template  
+- `prompts/system.md` - System prompt template
 - `.env.example` - Environment variables template
 
 ### 3. Configure Your Bot
@@ -46,7 +55,7 @@ profiles: [default]
 
 bots:
   - id: my-assistant
-    channels: 
+    channels:
       - "http:/api/chat"
     system_prompt: prompts/system.md
     model: openai:gpt-4o-mini
@@ -102,13 +111,13 @@ providers:
   anthropic:
     api_key: string               # Anthropic API key (supports env: prefix)
 
-# Channel adapter configuration  
+# Channel adapter configuration
 adapters:
   http:
     enabled: boolean              # Enable HTTP adapter (default: true)
     api_key: string               # API key for authentication (optional)
   telegram:
-    enabled: boolean              # Enable Telegram adapter (default: true) 
+    enabled: boolean              # Enable Telegram adapter (default: true)
     bot_token: string             # Telegram bot token (optional)
 
 # Knowledge bases (coming soon)
@@ -154,11 +163,12 @@ adapters:
 **OpenAI Models:**
 - `openai:gpt-4o-mini` (default)
 - `openai:gpt-4o`
+- `openai:gpt-5-nano` (latest GPT-5 model)
 - `openai:gpt-3.5-turbo`
 
 **Anthropic Models:**
 - `anthropic:claude-3-haiku`
-- `anthropic:claude-3-sonnet` 
+- `anthropic:claude-3-sonnet`
 - `anthropic:claude-3-opus`
 
 ## 📖 Configuration Examples
@@ -187,7 +197,7 @@ adapters:
 workspace: support-bot
 bots:
   - id: support-assistant
-    channels: 
+    channels:
       - "http:/api/chat"
       - "telegram:@supportbot"
     system_prompt: prompts/support.md
@@ -204,45 +214,55 @@ adapters:
     bot_token: env:TELEGRAM_BOT_TOKEN
 ```
 
-### Multi-LLM Setup
+### Multi-Bot Specialized Setup
 
 ```yaml
-workspace: multi-llm
+workspace: specialized-bots
 bots:
-  - id: fast-bot
-    channels: ["http:/api/fast"]
-    model: openai:gpt-4o-mini
-  - id: smart-bot  
-    channels: ["http:/api/smart"]
-    model: anthropic:claude-3-opus
+  - id: faq-bot
+    channels: ["http:/api/faq/chat"]
+    system_prompt: prompts/faq.md
+    model: openai:gpt-5-nano
+  - id: sales-bot
+    channels: ["http:/api/sales/chat"]
+    system_prompt: prompts/sales.md
+    model: openai:gpt-4o
 
 providers:
   openai:
     api_key: env:OPENAI_API_KEY
-  anthropic:
-    api_key: env:ANTHROPIC_API_KEY
 
 adapters:
   http:
     api_key: env:BOT_HTTP_KEY
 ```
 
+**Features:**
+- Each bot has its own web UI at `/ui/faq/chat` and `/ui/sales/chat`
+- Navigation between bots in the web interface
+- Dedicated API endpoints for each bot
+- Specialized system prompts for different use cases
+
 ## 🔌 Adapters
 
 ### HTTP Adapter
 
-The HTTP adapter provides both a web UI and REST API:
+The HTTP adapter provides dynamic web UIs and REST APIs for each bot:
 
-**Web UI**: Visit `http://localhost:8080/` for an interactive chat interface
+**Multi-Bot Web UI**:
+- Main UI at `http://localhost:8080/` shows all available bots
+- Individual bot UIs at `/ui/{path}` (e.g., `/ui/faq/chat`, `/ui/sales/chat`)
+- Navigation between bots with dedicated interfaces
+- Automatic redirect to single bot UI when only one bot is configured
 
-**REST API**: Send POST requests to `/api/chat`
+**Dynamic REST APIs**: Each bot gets its own endpoint
 
 ```bash
 curl -X POST http://localhost:8080/api/chat \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer dev-secret" \
   -d '{
-    "user_id": "user123", 
+    "user_id": "user123",
     "message": "Hello!",
     "bot_id": "default"
   }'
@@ -292,7 +312,7 @@ Run the development server:
 
 ```bash
 nexctl dev                # Start server on port 8080
-nexctl dev --port 3000    # Start server on custom port  
+nexctl dev --port 3000    # Start server on custom port
 ```
 
 ### nexctl init
@@ -349,12 +369,12 @@ Guidelines:
 
 ## 🔮 Coming Soon
 
-- **💬 Conversation Memory**: Persistent chat history and context
-- **🔀 Advanced Routing**: Route different channels to different bots  
 - **📊 Flow Engine**: Visual conversation flows and state management
 - **🎯 More Adapters**: Slack, Discord, and other platforms
 - **🧠 Knowledge Bases**: Document indexing and retrieval
 - **🔧 Tool Integration**: Function calling and external API access
+- **📈 Analytics**: Usage metrics and conversation analytics
+- **🔐 Advanced Auth**: OAuth, SSO, and role-based access control
 
 ## 🚨 Production Notes
 

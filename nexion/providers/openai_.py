@@ -1,8 +1,7 @@
 import httpx
-from typing import List, Dict
 
-from .base import Provider
 from ..core.types import ProviderMessage
+from .base import Provider
 
 
 class OpenAIProvider(Provider):
@@ -11,13 +10,13 @@ class OpenAIProvider(Provider):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-    def _get_headers(self) -> Dict[str, str]:
+    def _get_headers(self) -> dict[str, str]:
         return {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
         }
 
-    async def chat(self, model: str, messages: List[ProviderMessage]) -> str:
+    async def chat(self, model: str, messages: list[ProviderMessage]) -> str:
         url = f"{OpenAIProvider.BASE_URL}/v1/responses"
 
         # Separate system message from user/assistant messages
@@ -67,4 +66,4 @@ class OpenAIProvider(Provider):
             except (KeyError, IndexError, TypeError) as e:
                 raise ValueError(
                     f"Failed to parse OpenAI response: {e}. Response: {json}"
-                )
+                ) from e

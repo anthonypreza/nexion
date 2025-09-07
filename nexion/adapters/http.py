@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from typing import Optional
 
 from ..config.bridge import get_config_bridge
 from ..core.bot_manager import BotManager, get_bot_manager
-from ..core.types import MessageEvent, Channel
+from ..core.types import Channel, MessageEvent
 from ..utils.logging import get_logger
 
 router = APIRouter()
@@ -16,11 +15,11 @@ class ChatIn(BaseModel):
     bot_id: str = "default"
     user_id: str
     message: str
-    thread_id: Optional[str] = None
+    thread_id: str | None = None
 
 
 def auth(
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ):
     # Get HTTP key from workspace config
     bridge = get_config_bridge()
@@ -120,33 +119,33 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
         <title>Nexion Bot Chat</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            body {{ 
+            body {{
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                max-width: 800px; margin: 0 auto; padding: 20px; 
+                max-width: 800px; margin: 0 auto; padding: 20px;
                 background: #f5f5f5;
             }}
             .chat-container {{
-                background: white; border-radius: 12px; padding: 20px; 
+                background: white; border-radius: 12px; padding: 20px;
                 box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             }}
-            .messages {{ 
-                height: 400px; overflow-y: auto; border: 1px solid #ddd; 
+            .messages {{
+                height: 400px; overflow-y: auto; border: 1px solid #ddd;
                 padding: 15px; margin: 15px 0; border-radius: 8px;
                 background: #fafafa;
             }}
-            .message {{ 
-                margin: 10px 0; padding: 8px 12px; border-radius: 8px; 
+            .message {{
+                margin: 10px 0; padding: 8px 12px; border-radius: 8px;
                 white-space: pre-wrap; word-wrap: break-word;
             }}
             .user {{ background: #007bff; color: white; margin-left: 20%; }}
             .bot {{ background: #e9ecef; color: #333; margin-right: 20%; }}
             .input-group {{ display: flex; gap: 10px; }}
-            input {{ 
+            input {{
                 flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px;
                 font-size: 16px;
             }}
-            button {{ 
-                padding: 12px 20px; background: #007bff; color: white; 
+            button {{
+                padding: 12px 20px; background: #007bff; color: white;
                 border: none; border-radius: 8px; cursor: pointer; font-size: 16px;
             }}
             button:hover {{ background: #0056b3; }}
@@ -166,14 +165,14 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
     <body>
         <div class="chat-container">
             <h1 class="bot-title">🤖 {current_bot_id.title()} Bot Chat</h1>
-            
+
             <div class="nav-container">
                 <strong>Switch to other bots:</strong>
                 <div class="nav-links">
                     {navigation_html}
                 </div>
             </div>
-            
+
             <div class="settings">
                 <input type="text" id="userId" placeholder="User ID" value="user123">
                 <input type="text" id="apiKey" placeholder="API Key" value="dev-secret">
@@ -181,7 +180,7 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
                     ⚠️ Default API key is "dev-secret" - change this in production!
                 </div>
             </div>
-            
+
             <div id="messages" class="messages"></div>
             <div class="input-group">
                 <input type="text" id="messageInput" placeholder="Type your message..." onkeypress="handleEnter(event)">
@@ -196,7 +195,7 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
             let userId = localStorage.getItem('nexion_user_id') || 'user_' + Date.now();
             localStorage.setItem('nexion_user_id', userId);
             document.getElementById('userId').value = userId;
-            
+
             function addMessage(text, isUser = false) {{
                 const div = document.createElement('div');
                 div.className = `message ${{isUser ? 'user' : 'bot'}}`;
@@ -204,35 +203,35 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
                 messages.appendChild(div);
                 messages.scrollTop = messages.scrollHeight;
             }}
-            
+
             function handleEnter(event) {{
                 if (event.key === 'Enter' && !event.shiftKey) {{
                     event.preventDefault();
                     sendMessage();
                 }}
             }}
-            
+
             async function sendMessage() {{
                 const message = messageInput.value.trim();
                 if (!message) return;
-                
+
                 const userId = document.getElementById('userId').value || 'anonymous';
                 const apiKey = document.getElementById('apiKey').value;
-                
+
                 addMessage(message, true);
                 messageInput.value = '';
                 sendBtn.disabled = true;
                 sendBtn.textContent = 'Sending...';
-                
+
                 try {{
                     const headers = {{
                         'Content-Type': 'application/json'
                     }};
-                    
+
                     if (apiKey) {{
                         headers['Authorization'] = `Bearer ${{apiKey}}`;
                     }}
-                    
+
                     const response = await fetch('{current_path}', {{
                         method: 'POST',
                         headers,
@@ -242,28 +241,28 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
                             bot_id: '{current_bot_id}'
                         }})
                     }});
-                    
+
                     if (!response.ok) {{
                         const error = await response.json();
                         throw new Error(error.detail || `HTTP ${{response.status}}`);
                     }}
-                    
+
                     const data = await response.json();
                     addMessage(data.reply);
-                    
+
                 }} catch (error) {{
                     addMessage(`Error: ${{error.message}}`, false);
                     console.error('Chat error:', error);
                 }}
-                
+
                 sendBtn.disabled = false;
                 sendBtn.textContent = 'Send';
                 messageInput.focus();
             }}
-            
+
             // Focus on input when page loads
             messageInput.focus();
-            
+
             // Add welcome message
             addMessage('Hi! I\\'m your {current_bot_id.title()} bot. Ask me anything!');
         </script>
@@ -301,18 +300,18 @@ async def main_ui(bot_manager: BotManager = Depends(get_bot_manager)):
         <title>Nexion Bots</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            body {{ 
+            body {{
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                max-width: 800px; margin: 0 auto; padding: 20px; 
+                max-width: 800px; margin: 0 auto; padding: 20px;
                 background: #f5f5f5;
             }}
             .container {{
-                background: white; border-radius: 12px; padding: 30px; 
+                background: white; border-radius: 12px; padding: 30px;
                 box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center;
             }}
             .bot-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 30px; }}
-            .bot-card {{ 
-                display: block; padding: 20px; background: #f8f9fa; border: 2px solid #e9ecef; 
+            .bot-card {{
+                display: block; padding: 20px; background: #f8f9fa; border: 2px solid #e9ecef;
                 border-radius: 8px; text-decoration: none; color: #333; transition: all 0.3s;
             }}
             .bot-card:hover {{ border-color: #007bff; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }}
@@ -324,7 +323,7 @@ async def main_ui(bot_manager: BotManager = Depends(get_bot_manager)):
         <div class="container">
             <h1>🤖 Nexion Bots</h1>
             <p>Select a bot to start chatting:</p>
-            
+
             <div class="bot-grid">
                 {bot_cards_html}
             </div>

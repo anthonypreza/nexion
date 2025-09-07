@@ -1,8 +1,8 @@
 from pathlib import Path
-from typing import Optional
-from .settings import Settings
-from .yaml import load_config, WorkspaceConfig
+
 from ..utils.logging import get_logger
+from .settings import Settings
+from .yaml import WorkspaceConfig, load_config
 
 logger = get_logger("config_bridge")
 
@@ -10,7 +10,7 @@ logger = get_logger("config_bridge")
 class ConfigBridge:
     """Bridges YAML configuration with Settings system."""
 
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Path | None = None):
         # Load .env from current working directory first
         env_file = Path.cwd() / ".env"
         if env_file.exists():
@@ -20,7 +20,7 @@ class ConfigBridge:
             logger.info(f"Loaded .env file from {env_file}")
 
         self.yaml_config = load_config(config_path)
-        self._settings_cache: Optional[Settings] = None
+        self._settings_cache: Settings | None = None
 
     def get_settings(self) -> Settings:
         """Convert YAML configuration to Settings object."""
@@ -73,10 +73,10 @@ class ConfigBridge:
 
 
 # Global config bridge instance
-_config_bridge: Optional[ConfigBridge] = None
+_config_bridge: ConfigBridge | None = None
 
 
-def get_config_bridge(config_path: Optional[Path] = None) -> ConfigBridge:
+def get_config_bridge(config_path: Path | None = None) -> ConfigBridge:
     """Get or create the global config bridge."""
     global _config_bridge
     if _config_bridge is None:
@@ -84,7 +84,7 @@ def get_config_bridge(config_path: Optional[Path] = None) -> ConfigBridge:
     return _config_bridge
 
 
-def get_settings_from_yaml(config_path: Optional[Path] = None) -> Settings:
+def get_settings_from_yaml(config_path: Path | None = None) -> Settings:
     """Convenience function to get settings from a YAML file."""
     bridge = get_config_bridge(config_path)
     return bridge.get_settings()

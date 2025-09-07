@@ -1,8 +1,10 @@
 import os
-import yaml
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
 from ..utils.logging import get_logger
 
 logger = get_logger("config")
@@ -20,7 +22,7 @@ class HTTPAdapterConfig:
     """Configuration for HTTP adapters."""
 
     enabled: bool = True
-    api_key: Optional[str] = None
+    api_key: str | None = None
 
 
 @dataclass
@@ -28,7 +30,7 @@ class TelegramAdapterConfig:
     """Configuration for Telegram adapters."""
 
     enabled: bool = True
-    bot_token: Optional[str] = None
+    bot_token: str | None = None
 
 
 @dataclass
@@ -36,9 +38,9 @@ class SlackAdapterConfig:
     """Configuration for Slack adapters."""
 
     enabled: bool = True
-    app_token: Optional[str] = None
-    bot_token: Optional[str] = None
-    signing_secret: Optional[str] = None
+    app_token: str | None = None
+    bot_token: str | None = None
+    signing_secret: str | None = None
 
 
 @dataclass
@@ -46,12 +48,15 @@ class DiscordAdapterConfig:
     """Configuration for Discord adapters."""
 
     enabled: bool = True
-    bot_token: Optional[str] = None
+    bot_token: str | None = None
 
 
-AdapterConfig = Union[
-    HTTPAdapterConfig, TelegramAdapterConfig, SlackAdapterConfig, DiscordAdapterConfig
-]
+AdapterConfig = (
+    HTTPAdapterConfig
+    | TelegramAdapterConfig
+    | SlackAdapterConfig
+    | DiscordAdapterConfig
+)
 
 
 @dataclass
@@ -68,13 +73,13 @@ class BotConfig:
     """Configuration for a single bot."""
 
     id: str
-    channels: List[str] = field(
+    channels: list[str] = field(
         default_factory=list
     )  # ["http:/api/chat", "telegram:@mybotname"]
-    system_prompt: Optional[str] = None  # Path to system prompt file
-    flows: List[str] = field(default_factory=list)  # Path to flow YAML files
+    system_prompt: str | None = None  # Path to system prompt file
+    flows: list[str] = field(default_factory=list)  # Path to flow YAML files
     model: str = "openai:gpt-4o-mini"
-    tools: List[str] = field(default_factory=list)  # Tool names to enable
+    tools: list[str] = field(default_factory=list)  # Tool names to enable
 
 
 @dataclass
@@ -82,19 +87,19 @@ class WorkspaceConfig:
     """Main configuration for the entire workspace."""
 
     workspace: str = "default"
-    profiles: List[str] = field(default_factory=lambda: ["default"])
+    profiles: list[str] = field(default_factory=lambda: ["default"])
 
     # Core components
-    bots: List[BotConfig] = field(default_factory=list)
-    kb: List[KnowledgeBaseConfig] = field(default_factory=list)
-    providers: Dict[str, ProviderConfig] = field(default_factory=dict)
-    adapters: Dict[str, AdapterConfig] = field(default_factory=dict)
+    bots: list[BotConfig] = field(default_factory=list)
+    kb: list[KnowledgeBaseConfig] = field(default_factory=list)
+    providers: dict[str, ProviderConfig] = field(default_factory=dict)
+    adapters: dict[str, AdapterConfig] = field(default_factory=dict)
 
 
 class ConfigLoader:
     """Loads and validates YAML configuration file."""
 
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Path | None = None):
         self.config_path = config_path or Path.cwd() / "bot.yml"
 
     def load(self) -> WorkspaceConfig:
@@ -104,7 +109,7 @@ class ConfigLoader:
             return WorkspaceConfig()
 
         logger.info(f"Loading configuration from {self.config_path}")
-        with open(self.config_path, "r") as f:
+        with open(self.config_path) as f:
             raw_config = yaml.safe_load(f)
 
         # Process env variable substitution
@@ -134,7 +139,7 @@ class ConfigLoader:
             return data
 
     @staticmethod
-    def _dict_to_config(data: Dict[str, Any]) -> WorkspaceConfig:
+    def _dict_to_config(data: dict[str, Any]) -> WorkspaceConfig:
         """Convert dictionary to WorkspaceConfig dataclass"""
 
         # Parse providers
@@ -180,7 +185,7 @@ class ConfigLoader:
         )
 
 
-def load_config(config_path: Optional[Path] = None) -> WorkspaceConfig:
+def load_config(config_path: Path | None = None) -> WorkspaceConfig:
     """Convenience function to load configuration"""
     loader = ConfigLoader(config_path)
     return loader.load()

@@ -1,12 +1,13 @@
-from pathlib import Path
-from typing import List, Optional, Dict, Any
-from sqlmodel import SQLModel, create_engine, Session, select
-from datetime import datetime
 import json
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
+from sqlmodel import Session, SQLModel, create_engine, select
+
+from ..utils.logging import get_logger
 from .base import ConversationStore
 from .models import Conversation, Message
-from ..utils.logging import get_logger
 
 
 class SQLiteStore(ConversationStore):
@@ -38,7 +39,7 @@ class SQLiteStore(ConversationStore):
         bot_id: str,
         channel_ref: str,
         user_ref: str,
-        thread_id: Optional[str] = None,
+        thread_id: str | None = None,
     ) -> Conversation:
         """Get existing conversation or create a new one."""
 
@@ -84,7 +85,7 @@ class SQLiteStore(ConversationStore):
         conversation_id: str,
         role: str,
         content: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Message:
         """Add a message to a conversation."""
 
@@ -113,7 +114,7 @@ class SQLiteStore(ConversationStore):
 
     async def get_conversation_history(
         self, conversation_id: str, limit: int = 10
-    ) -> List[Message]:
+    ) -> list[Message]:
         """Get recent messages for a conversation, ordered by created_at ASC."""
 
         with Session(self.engine) as session:
@@ -129,7 +130,7 @@ class SQLiteStore(ConversationStore):
             return list(reversed(messages))
 
     async def update_conversation_state(
-        self, conversation_id: str, state: Dict[str, Any]
+        self, conversation_id: str, state: dict[str, Any]
     ) -> None:
         """Update conversation state/metadata."""
 
@@ -140,9 +141,7 @@ class SQLiteStore(ConversationStore):
                 session.add(conversation)
                 session.commit()
 
-    async def get_conversation_by_id(
-        self, conversation_id: str
-    ) -> Optional[Conversation]:
+    async def get_conversation_by_id(self, conversation_id: str) -> Conversation | None:
         """Get conversation by ID."""
 
         with Session(self.engine) as session:

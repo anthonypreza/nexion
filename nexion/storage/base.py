@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any
+from typing import Any
 from uuid import uuid4
 
 from .models import Conversation, Message
@@ -20,7 +20,7 @@ class ConversationStore(ABC):
         bot_id: str,
         channel_ref: str,
         user_ref: str,
-        thread_id: Optional[str] = None,
+        thread_id: str | None = None,
     ) -> Conversation:
         """Get existing conversation or create a new one."""
         pass
@@ -31,7 +31,7 @@ class ConversationStore(ABC):
         conversation_id: str,
         role: str,
         content: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Message:
         """Add a message to a conversation."""
         pass
@@ -39,21 +39,19 @@ class ConversationStore(ABC):
     @abstractmethod
     async def get_conversation_history(
         self, conversation_id: str, limit: int = 10
-    ) -> List[Message]:
+    ) -> list[Message]:
         """Get recent messages for a conversation, ordered by created_at DESC."""
         pass
 
     @abstractmethod
     async def update_conversation_state(
-        self, conversation_id: str, state: Dict[str, Any]
+        self, conversation_id: str, state: dict[str, Any]
     ) -> None:
         """Update conversation state/metadata."""
         pass
 
     @abstractmethod
-    async def get_conversation_by_id(
-        self, conversation_id: str
-    ) -> Optional[Conversation]:
+    async def get_conversation_by_id(self, conversation_id: str) -> Conversation | None:
         """Get conversation by ID."""
         pass
 
@@ -78,7 +76,7 @@ class ConversationStore(ABC):
         bot_id: str,
         channel_ref: str,
         user_ref: str,
-        thread_id: Optional[str] = None,
+        thread_id: str | None = None,
     ) -> str:
         """Create a deterministic key for conversation lookup."""
         parts = [workspace_id, bot_id, channel_ref, user_ref]

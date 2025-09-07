@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, List
 from enum import Enum
+from typing import Any
 
 
 class Channel(str, Enum):
@@ -15,14 +15,14 @@ class MessageEvent:
     text: str
     bot_id: str
     workspace_id: str = "default"
-    thread_id: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    thread_id: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass
 class Reply:
     text: str
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass
@@ -40,6 +40,6 @@ class ConversationContext:
     bot_id: str
     channel_ref: str
     user_ref: str
-    thread_id: Optional[str] = None
-    state: Optional[Dict[str, Any]] = None
-    history: Optional[List[ProviderMessage]] = None
+    thread_id: str | None = None
+    state: dict[str, Any] | None = None
+    history: list[ProviderMessage] | None = None

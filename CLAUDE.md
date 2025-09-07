@@ -7,6 +7,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Install dependencies:**
 ```bash
 uv sync
+uv sync --group dev  # Install development dependencies
+```
+
+**Set up pre-commit hooks (required for contributors):**
+```bash
+pre-commit install
 ```
 
 **Run development server:**
@@ -21,6 +27,14 @@ nexctl init my-bot        # Create new project directory
 nexctl init .             # Initialize in current directory
 ```
 
+**Code formatting and linting:**
+```bash
+ruff check              # Check for linting issues
+ruff check --fix        # Auto-fix linting issues
+ruff format             # Format code
+pre-commit run --all-files  # Run all pre-commit hooks manually
+```
+
 **CLI entry point:**
 - Main CLI script is at `nexion/cli/nexctl.py`
 - Uses Typer for command-line interface
@@ -28,14 +42,15 @@ nexctl init .             # Initialize in current directory
 
 ## Architecture Overview
 
-Nexion is an AI agent framework for building multi-channel bots via YAML configuration. Currently implements **Phase 0** of the system design with HTTP and Telegram adapters.
+Nexion is an AI agent framework for building multi-channel bots via YAML configuration. Currently implements **Phase 1** of the system design with full multi-bot support, dynamic routing, and persistent conversations.
 
-### Current Implementation (Phase 0)
+### Current Implementation (Phase 1)
 
 **Core Components:**
 - `nexion/core/server.py` - FastAPI server with lifespan management, coordinates all services
 - `nexion/core/agent.py` - `AgentRuntime` class handles message processing and LLM provider routing
-- `nexion/core/types.py` - Shared data types (`MessageEvent`, `Reply`, etc.)
+- `nexion/core/bot_manager.py` - `BotManager` orchestrates multiple bots with dynamic routing
+- `nexion/core/types.py` - Shared data types (`MessageEvent`, `Reply`, `ProviderMessage`, etc.)
 
 **Configuration System:**
 - `nexion/config/yaml.py` - YAML configuration loader with env variable substitution (`env:VARIABLE_NAME`)
@@ -44,15 +59,23 @@ Nexion is an AI agent framework for building multi-channel bots via YAML configu
 - Main config file: `bot.yml` in project root
 
 **Adapters (Channel Interfaces):**
-- `nexion/adapters/http.py` - HTTP REST API and web UI interface
+- `nexion/adapters/http.py` - Dynamic HTTP REST APIs and multi-bot web UIs with navigation
 - `nexion/adapters/telegram.py` - Telegram bot polling integration
 - Each adapter handles channel-specific message formatting and delivery
+- HTTP adapter creates individual UIs for each bot with cross-navigation
 
 **LLM Providers:**
-- `nexion/providers/openai_.py` - OpenAI integration (GPT models)
+- `nexion/providers/openai_.py` - OpenAI integration (GPT-4, GPT-5) with Responses API support
 - `nexion/providers/anthropic_.py` - Anthropic integration (Claude models)
 - `nexion/providers/provider.py` - Base provider interface
-- Provider selection based on model prefix in config (e.g., `openai:gpt-4o-mini`)
+- Provider selection based on model prefix in config (e.g., `openai:gpt-5-nano`)
+- Support for system prompts via `instructions` field (OpenAI) and message arrays (Anthropic)
+
+**Storage Layer:**
+- `nexion/storage/sqlite.py` - SQLite implementation for conversation persistence
+- `nexion/storage/models.py` - SQLModel data models for conversations and messages
+- `nexion/storage/base.py` - Abstract base classes for storage interfaces
+- Automatic database schema initialization and conversation tracking
 
 ### Planned Architecture (Full System Design)
 
@@ -67,10 +90,18 @@ Nexion is an AI agent framework for building multi-channel bots via YAML configu
 **Configuration Structure:**
 Bot behavior is defined in `bot.yml` with these key sections:
 - `bots[]` - Bot instances with channels, models, system prompts, flows, tools
-- `providers{}` - LLM API keys and configuration  
+- `providers{}` - LLM API keys and configuration
 - `adapters{}` - Channel adapter settings (HTTP, Telegram, Slack, Discord)
 - `kb[]` - Knowledge bases with ingestion and indexing
 - `flows[]` - Conversation flow definitions (YAML state machines)
+
+**Message Flow (Current):**
+1. Channel adapter receives message → normalized `MessageEvent`
+2. BotManager routes to appropriate bot based on channel configuration
+3. Agent Runtime loads conversation history and system prompt
+4. LLM provider processes message with full context
+5. Response stored in conversation history
+6. Reply sent back through appropriate channel adapter
 
 **Message Flow (Target):**
 1. Channel adapter receives message → normalized `MessageEvent`
@@ -89,11 +120,11 @@ Bot behavior is defined in `bot.yml` with these key sections:
 
 ## Development Context
 
-**Current State:** Basic multi-channel bot framework with simple message handling
+**Current State:** Multi-bot framework with persistent conversations, dynamic routing, and specialized UIs
 **Target:** Full agentic platform with tools, flows, knowledge bases, and MCP integration
 
 **System Prompt Handling:**
-- Currently: Single system prompt per bot, loaded from Markdown files
+- Currently: Individual system prompts per bot, loaded from Markdown files, proper OpenAI Responses API integration
 - Target: Dynamic prompts with context injection, KB citations, tool schemas
 
 **Configuration Evolution:**
@@ -104,7 +135,7 @@ Bot behavior is defined in `bot.yml` with these key sections:
 
 **Required environment variables:**
 - `OPENAI_API_KEY` - For OpenAI models
-- `ANTHROPIC_API_KEY` - For Anthropic models  
+- `ANTHROPIC_API_KEY` - For Anthropic models
 - `BOT_HTTP_KEY` - HTTP adapter authentication (optional)
 - `TELEGRAM_BOT_TOKEN` - Telegram bot integration (optional)
 

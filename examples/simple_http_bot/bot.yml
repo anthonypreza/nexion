@@ -3,7 +3,7 @@ profiles: [default, dev]
 
 bots:
   - id: simple-bot
-    channels: 
+    channels:
       - "http:/api/chat"
     system_prompt: prompts/system.md
     model: openai:gpt-4o-mini

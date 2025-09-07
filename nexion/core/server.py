@@ -1,11 +1,13 @@
-import uvicorn
 from contextlib import asynccontextmanager
 
+import uvicorn
 from fastapi import FastAPI
-from ..adapters.http import router as http_router, register_dynamic_routes
+
+from ..adapters.http import register_dynamic_routes
+from ..adapters.http import router as http_router
 from ..adapters.telegram import start_telegram_polling, stop_telegram_polling
 from ..config.bridge import get_settings_from_yaml
-from ..utils.logging import setup_logging, get_logger
+from ..utils.logging import get_logger, setup_logging
 
 
 @asynccontextmanager
@@ -54,8 +56,8 @@ async def create_app() -> FastAPI:
 
 def run(port: int = 8080):
     # Store port for the lifespan function
-    import os
     import asyncio
+    import os
 
     os.environ["NEXION_SERVER_PORT"] = str(port)
 
