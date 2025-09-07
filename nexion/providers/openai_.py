@@ -1,8 +1,7 @@
 import httpx
-from typing import List, Dict
 
-from .provider import Provider
 from ..core.types import ProviderMessage
+from .base import Provider
 
 
 class OpenAIProvider(Provider):
@@ -11,18 +10,60 @@ class OpenAIProvider(Provider):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-    def _get_headers(self) -> Dict[str, str]:
+    def _get_headers(self) -> dict[str, str]:
         return {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
         }
 
-    async def chat(self, model: str, messages: List[ProviderMessage]) -> str:
+    async def chat(self, model: str, messages: list[ProviderMessage]) -> str:
         url = f"{OpenAIProvider.BASE_URL}/v1/responses"
-        payload = {"model": model, "input": messages}
+
+        # Separate system message from user/assistant messages
+        system_message = None
+        input_messages = []
+
+        for message in messages:
+            if message.get("role") == "system":
+                system_message = message.get("content")
+            else:
+                input_messages.append(message)
+
+        # Build payload with instructions field for system prompt
+        payload = {"model": model, "input": input_messages}
+
+        if system_message:
+            payload["instructions"] = system_message
 
         async with httpx.AsyncClient(timeout=30) as client:
             res = await client.post(url, headers=self._get_headers(), json=payload)
             res.raise_for_status()
             json = res.json()
-            return json["output"][0]["content"][0]["text"]
+
+            # Handle both GPT-4 and GPT-5 response formats
+            try:
+                # Try GPT-5 format first (newer format)
+                if "output" in json and len(json["output"]) > 0:
+                    # Look for message type in output array
+                    for output_item in json["output"]:
+                        if (
+                            output_item.get("type") == "message"
+                            and "content" in output_item
+                        ):
+                            content = output_item["content"]
+                            if len(content) > 0 and "text" in content[0]:
+                                return content[0]["text"]
+
+                # Fallback to GPT-4 format (legacy format)
+                if "output" in json and len(json["output"]) > 0:
+                    first_output = json["output"][0]
+                    if "content" in first_output and len(first_output["content"]) > 0:
+                        return first_output["content"][0]["text"]
+
+                # If neither format works, raise an error
+                raise ValueError("Unexpected response format from OpenAI API")
+
+            except (KeyError, IndexError, TypeError) as e:
+                raise ValueError(
+                    f"Failed to parse OpenAI response: {e}. Response: {json}"
+                ) from e

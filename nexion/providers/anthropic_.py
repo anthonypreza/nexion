@@ -1,8 +1,7 @@
 import httpx
-from typing import List, Dict
 
-from .provider import Provider
 from ..core.types import ProviderMessage
+from .base import Provider
 
 
 class AnthropicProvider(Provider):
@@ -11,14 +10,14 @@ class AnthropicProvider(Provider):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-    def _get_headers(self) -> Dict[str, str]:
+    def _get_headers(self) -> dict[str, str]:
         return {
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
             "Content-Type": "application/json",
         }
 
-    async def chat(self, model: str, messages: List[ProviderMessage]) -> str:
+    async def chat(self, model: str, messages: list[ProviderMessage]) -> str:
         url = f"{AnthropicProvider.BASE_URL}/v1/messages"
         payload = {"model": model, "max_tokens": 1000, "messages": messages}
 

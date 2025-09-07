@@ -3,7 +3,7 @@ profiles: [default, dev]
 
 bots:
   - id: simple-bot-cloned
-    channels: 
+    channels:
       - "http:/api/chat"
       - "telegram:@supportbot"
     system_prompt: prompts/system.md

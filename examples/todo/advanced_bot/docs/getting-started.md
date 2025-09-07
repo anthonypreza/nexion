@@ -5,7 +5,7 @@ Welcome to our platform! This guide will help you get up and running quickly.
 ## Installation
 
 1. Download the application from our website
-2. Run the installer 
+2. Run the installer
 3. Follow the setup wizard
 
 ## Configuration

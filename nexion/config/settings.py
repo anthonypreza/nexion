@@ -1,19 +1,19 @@
 from pathlib import Path
+
 from pydantic import BaseSettings
-from typing import Optional
 
 
 class Settings(BaseSettings):
     # LLM
-    OPENAI_API_KEY: Optional[str] = None
-    ANTHROPIC_API_KEY: Optional[str] = None
+    OPENAI_API_KEY: str | None = None
+    ANTHROPIC_API_KEY: str | None = None
     MODEL: str = "openai:gpt-4o-mini"
 
     # HTTP
-    BOT_HTTP_KEY: Optional[str] = None
+    BOT_HTTP_KEY: str | None = None
 
     # Telegram
-    TELEGRAM_BOT_TOKEN: Optional[str] = None
+    TELEGRAM_BOT_TOKEN: str | None = None
 
     # Prompts
     SYSTEM_PROMPT_PATH: str = "prompts/system.md"

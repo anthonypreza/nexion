@@ -3,20 +3,20 @@ profiles: [default, dev]
 
 bots:
   - id: support-bot
-    channels: 
+    channels:
       - "http:/api/chat"
       - "telegram:@supportbot"
     system_prompt: prompts/support.md
-    flows: 
+    flows:
       - flows/faq.yml
     model: openai:gpt-4o-mini
-    tools: 
+    tools:
       - http
       - kb.search
 
   - id: docs-bot
     channels:
-      - "http:/api/docs-chat"  
+      - "http:/api/docs-chat"
     system_prompt: prompts/docs.md
     model: anthropic:claude-3-sonnet
     tools:
@@ -26,7 +26,7 @@ kb:
   - id: docs
     source: ./docs
     index: bm25
-  
+
   - id: support-kb
     source: ./support-docs
     index: bm25
