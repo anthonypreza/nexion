@@ -38,10 +38,14 @@ async def chat(payload: ChatIn, settings: Settings = Depends(auth)):
     )
 
     runtime = AgentRuntime(settings)
+    await runtime.initialize()
+
     event = MessageEvent(
         channel=Channel.HTTP,
         user_id=payload.user_id,
         text=payload.message,
+        bot_id=payload.bot_id,
+        workspace_id="default",  # TODO: Make this configurable
         thread_id=payload.thread_id,
     )
     res = await runtime.handle(event)
@@ -120,6 +124,9 @@ async def chat_ui():
             const messages = document.getElementById('messages');
             const messageInput = document.getElementById('messageInput');
             const sendBtn = document.getElementById('sendBtn');
+            let userId = localStorage.getItem('nexion_user_id') || 'user_' + Date.now();
+            localStorage.setItem('nexion_user_id', userId);
+            document.getElementById('userId').value = userId;
             
             function addMessage(text, isUser = false) {
                 const div = document.createElement('div');

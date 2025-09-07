@@ -1,7 +1,7 @@
 import httpx
 from typing import List, Dict
 
-from .provider import Provider
+from .base import Provider
 from ..core.types import ProviderMessage
 
 

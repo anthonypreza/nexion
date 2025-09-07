@@ -94,7 +94,16 @@ class TelegramPollingService:
 
         # Process the message
         runtime = AgentRuntime(self.settings)
-        event = MessageEvent(channel=Channel.TELEGRAM, user_id=user_id, text=text)
+        await runtime.initialize()
+
+        event = MessageEvent(
+            channel=Channel.TELEGRAM,
+            user_id=str(chat_id),
+            text=text,
+            bot_id="default",  # TODO: Make these configurable
+            workspace_id="default",
+            metadata={"telegram_user_id": user_id, "telegram_chat_id": chat_id}
+        )
 
         logger.info(
             f"Processing Telegram message from user {user_id}: {text[:50]}{'...' if len(text) > 50 else ''}"
