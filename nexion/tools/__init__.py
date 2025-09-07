@@ -54,8 +54,6 @@ def list_registered_tools() -> list[str]:
     return registry.list_tools()
 
 
-# Do not auto-register any built-in tools on import
-
 # Export main interfaces
 __all__ = [
     "tool",
