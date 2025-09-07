@@ -1,0 +1,33 @@
+workspace: tools-example
+
+providers:
+  anthropic:
+    api_key: env:ANTHROPIC_API_KEY
+    max_tokens: 1024
+  openai:
+    api_key: env:OPENAI_API_KEY
+    max_tokens: 1024
+
+adapters:
+  http:
+    api_key: env:BOT_HTTP_KEY
+  telegram:
+    bot_token: env:TELEGRAM_BOT_TOKEN
+
+bots:
+  - id: tools-bot
+    model: anthropic:claude-sonnet-4-20250514
+    system_prompt: prompts/system.md
+    channels:
+      - http:/api/chat
+    tools:
+      - weather         # Custom weather tool
+      - calculate       # Custom calculator tool
+  - id: telegram-tools-bot
+    model: openai:o4-mini
+    system_prompt: prompts/system.md
+    channels:
+      - telegram:@mybot
+    tools:
+      - fetch_joke      # Example API fetch tool
+      - calculate       # Re-use tools across channels

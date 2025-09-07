@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
@@ -6,22 +7,69 @@ from fastapi import FastAPI
 from ..adapters.http import register_dynamic_routes
 from ..adapters.http import router as http_router
 from ..adapters.telegram import start_telegram_polling, stop_telegram_polling
-from ..config.bridge import get_settings_from_yaml
+from ..config.yaml import ConfigLoader
+from ..core.bot_manager import get_bot_manager
 from ..utils.logging import get_logger, setup_logging
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    setup_logging()
+    # Load .env as early as possible so log level env is available
+    try:
+        from dotenv import load_dotenv
+
+        env_path = Path.cwd() / ".env"
+        if env_path.exists():
+            load_dotenv(env_path)
+    except Exception:
+        pass
+
+    # Peek at YAML for optional log_level before initializing logging
+    level = None
+    try:
+        cfg = ConfigLoader().load()
+        level = cfg.log_level
+    except Exception:
+        level = None
+
+    setup_logging(level)
     logger = get_logger("server")
 
     # Startup
     logger.info("🚀 Starting Nexion server...")
-    settings = get_settings_from_yaml()
-    logger.info(f"📝 Configuration loaded (model: {settings.MODEL})")
+    bot_manager = await get_bot_manager()
+    # Summarize providers/models for all bots after initialization
+    try:
+        for bot_id, agent in bot_manager.bots.items():
+            provider_obj = getattr(agent, "provider", None)
+            # Resolve channels from workspace config
+            channels = []
+            try:
+                cfgs = [b for b in bot_manager.workspace_config.bots if b.id == bot_id]
+                if cfgs:
+                    channels = [
+                        c if isinstance(c, str) else c.channel for c in cfgs[0].channels
+                    ]
+            except Exception:
+                channels = []
+
+            if provider_obj:
+                provider_type = provider_obj.__class__.__name__.replace(
+                    "Provider", ""
+                ).lower()
+                logger.info(
+                    f"🧩 Bot '{bot_id}': provider={provider_type} model={agent.model}"
+                )
+            else:
+                logger.info(f"🧩 Bot '{bot_id}': provider=none (echo mode)")
+            logger.info(
+                f"   ↳ channels: {', '.join(channels) if channels else '(none)'}"
+            )
+    except Exception as e:
+        logger.warning(f"Could not log bot provider summary: {e}")
 
     # Start telegram polling
-    await start_telegram_polling(settings)
+    await start_telegram_polling(bot_manager)
 
     # Get the port from environment variable set by run()
     import os

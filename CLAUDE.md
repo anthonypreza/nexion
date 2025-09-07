@@ -65,7 +65,7 @@ Nexion is an AI agent framework for building multi-channel bots via YAML configu
 - HTTP adapter creates individual UIs for each bot with cross-navigation
 
 **LLM Providers:**
-- `nexion/providers/openai_.py` - OpenAI integration (GPT-4, GPT-5) with Responses API support
+- `nexion/providers/openai_.py` - OpenAI integration (Responses API)
 - `nexion/providers/anthropic_.py` - Anthropic integration (Claude models)
 - `nexion/providers/provider.py` - Base provider interface
 - Provider selection based on model prefix in config (e.g., `openai:gpt-5-nano`)
@@ -81,7 +81,7 @@ Nexion is an AI agent framework for building multi-channel bots via YAML configu
 
 **Target Components (Roadmap):**
 - **Router & Policy** - Flow engine with YAML-defined conversation flows
-- **Tool Registry** - Function calling with Python callables, HTTP tools, MCP integration
+- **Tool Registry** - Function calling with Python callables; HTTP via custom tools; MCP integration
 - **Knowledge Base** - Markdown ingestion with BM25/embeddings, auto-MCP server generation
 - **Additional Adapters** - Slack, Discord with command support
 - **Storage Layer** - Postgres for persistence, Redis for caching/queues
@@ -94,6 +94,7 @@ Bot behavior is defined in `bot.yml` with these key sections:
 - `adapters{}` - Channel adapter settings (HTTP, Telegram, Slack, Discord)
 - `kb[]` - Knowledge bases with ingestion and indexing
 - `flows[]` - Conversation flow definitions (YAML state machines)
+ - `log_level` - Optional global log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 
 **Message Flow (Current):**
 1. Channel adapter receives message → normalized `MessageEvent`

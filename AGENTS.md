@@ -1,0 +1,40 @@
+# Repository Guidelines
+
+## Project Structure & Module Organization
+- `nexion/` — core source code
+  - `adapters/` (HTTP, Telegram), `core/` (agent runtime, server), `providers/` (OpenAI, Anthropic),
+    `tools/` (registry, decorators), `storage/` (SQLite + models), `config/` (YAML/.env bridge), `utils/` (logging).
+- `examples/` — runnable sample bots (see `examples/tools_example`).
+- Root docs: `README.md`, `CLAUDE.md`, `AGENTS.md` (this file).
+
+## Build, Test, and Development Commands
+- Install deps: `uv sync` (add `--group dev` for contributor tooling).
+- Run dev server: `nexctl dev` (launches HTTP UI and Telegram polling if configured).
+- Code style (pre-commit): `pre-commit install && pre-commit run -a`.
+- Packaging/venv is managed by `uv`; Python 3.10+ recommended.
+
+## Coding Style & Naming Conventions
+- Python: 4-space indent, type hints required for new code.
+- Naming: modules_snake_case, functions_snake_case, ClassesPascalCase, constants_UPPER.
+- Lint/format: Ruff (configured in `pyproject.toml`); run via pre-commit.
+- Logging: use `from nexion.utils.logging import get_logger`; avoid printing secrets.
+
+## Testing Guidelines
+- No formal test suite yet. Prefer `pytest` with tests in `tests/` named `test_*.py`.
+- Keep unit tests small and deterministic; mock network calls.
+- Add minimal fixtures for providers/tools when contributing features.
+
+## Commit & Pull Request Guidelines
+- Commits: concise, imperative (“Add X”, “Fix Y”); group related changes.
+- PRs: clear description, reproduction steps, screenshots/logs when relevant; link issues.
+- Keep scope focused; update docs/examples when behavior or configs change.
+
+## Security & Configuration Tips
+- Secrets via `.env` and `env:` in `bot.yml`; never commit secrets.
+- No built-in generic HTTP tool; create narrow tools (e.g., `fetch_joke`) under `examples/`.
+- Logging level: set `log_level` in `bot.yml` or `NEXION_LOG_LEVEL` env.
+
+## Architecture Overview (Brief)
+- Provider chosen by `model` prefix (`openai:`/`anthropic:`).
+- OpenAI uses the Responses API; Anthropic uses Messages API with tool_use/tool_result.
+- Conversations persisted in SQLite; agent reconstructs provider-specific message shapes.

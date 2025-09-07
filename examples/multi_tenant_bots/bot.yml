@@ -1,0 +1,92 @@
+workspace: multi-tenant-demo
+
+# Global/default provider configurations (fallbacks)
+providers:
+  openai:
+    api_key: env:GLOBAL_OPENAI_API_KEY
+    max_tokens: 1024
+  anthropic:
+    api_key: env:GLOBAL_ANTHROPIC_API_KEY
+    max_tokens: 2048
+
+# Global/default adapter configurations (fallbacks)
+adapters:
+  http:
+    api_key: env:DEFAULT_HTTP_API_KEY
+  telegram:
+    bot_token: env:DEFAULT_TELEGRAM_BOT_TOKEN
+
+bots:
+  # Customer Support Bot - Uses Anthropic with custom credentials
+  - id: support_bot
+    model: anthropic:claude-3-haiku-20240307
+    system_prompt: prompts/support.md
+    channels:
+      # HTTP endpoint with dedicated API key for security
+      - channel: http:/api/support
+        adapter_config:
+          api_key: env:SUPPORT_HTTP_API_KEY
+      # Telegram bot with dedicated token
+      - channel: telegram:@supportbot
+        adapter_config:
+          bot_token: env:SUPPORT_TELEGRAM_BOT_TOKEN
+    # Override provider config for this bot
+    provider_config:
+      anthropic:
+        api_key: env:SUPPORT_ANTHROPIC_API_KEY
+        max_tokens: 1500
+
+  # Sales Bot - Uses OpenAI GPT-4 with different credentials
+  - id: sales_bot
+    model: openai:gpt-4o
+    system_prompt: prompts/sales.md
+    channels:
+      # Separate HTTP endpoint with own API key
+      - channel: http:/api/sales
+        adapter_config:
+          api_key: env:SALES_HTTP_API_KEY
+      # Different Telegram bot
+      - channel: telegram:@salesbot
+        adapter_config:
+          bot_token: env:SALES_TELEGRAM_BOT_TOKEN
+    # Override provider config for sales team
+    provider_config:
+      openai:
+        api_key: env:SALES_OPENAI_API_KEY
+        max_tokens: 2048
+
+  # Internal Dev Bot - Uses global fallbacks for simplicity
+  - id: dev_bot
+    model: openai:gpt-4o-mini
+    system_prompt: prompts/dev.md
+    channels:
+      # Uses global HTTP API key (no override)
+      - http:/api/dev
+      # Uses global Telegram token (no override)
+      - telegram:@devbot
+    # Uses global provider configs (no override)
+
+  # HR Bot - Mixed configuration (some overrides, some globals)
+  - id: hr_bot
+    model: anthropic:claude-3-sonnet-20240229
+    system_prompt: prompts/hr.md
+    channels:
+      # Custom HTTP key for HR security
+      - channel: http:/api/hr
+        adapter_config:
+          api_key: env:HR_HTTP_API_KEY
+      # Uses global Telegram token
+      - telegram:@hrbot
+    # Custom Anthropic key for HR, but uses global max_tokens
+    provider_config:
+      anthropic:
+        api_key: env:HR_ANTHROPIC_API_KEY
+
+  # Demo Bot - Public facing, uses global configs
+  - id: demo_bot
+    model: openai:gpt-4o-mini
+    system_prompt: prompts/demo.md
+    channels:
+      # Public endpoint with global API key
+      - http:/api/demo
+      # No Telegram for demo bot

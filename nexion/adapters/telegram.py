@@ -3,8 +3,7 @@ import asyncio
 import httpx
 from fastapi import APIRouter
 
-from ..config.settings import Settings
-from ..core.agent import AgentRuntime
+from ..core.bot_manager import BotManager
 from ..core.types import Channel, MessageEvent
 from ..utils.logging import get_logger
 
@@ -13,24 +12,22 @@ logger = get_logger("telegram")
 
 
 class TelegramPollingService:
-    def __init__(self, settings: Settings):
-        self.settings = settings
+    def __init__(self, bot_token: str, bot_manager: BotManager, bot_username: str):
+        self.bot_token = bot_token
+        self.bot_manager = bot_manager
+        self.bot_username = bot_username  # e.g., "@supportbot"
         self.last_update_id = 0
         self.running = False
         self.task: asyncio.Task | None = None
 
     async def start(self):
         """Start the polling service"""
-        if not self.settings.TELEGRAM_BOT_TOKEN:
-            logger.info("Telegram bot token not configured, skipping Telegram polling")
-            return
-
         if self.running:
             return
 
         self.running = True
         self.task = asyncio.create_task(self._poll_loop())
-        logger.info("Telegram polling service started")
+        logger.info(f"Telegram polling service started for bot {self.bot_username}")
 
     async def stop(self):
         """Stop the polling service"""
@@ -41,7 +38,7 @@ class TelegramPollingService:
                 await self.task
             except asyncio.CancelledError:
                 pass
-        logger.info("Telegram polling service stopped")
+        logger.info(f"Telegram polling service stopped for bot {self.bot_username}")
 
     async def _poll_loop(self):
         """Main polling loop"""
@@ -56,7 +53,7 @@ class TelegramPollingService:
     async def _get_updates(self):
         """Fetch updates from Telegram"""
         async with httpx.AsyncClient(timeout=30) as client:
-            url = f"https://api.telegram.org/bot{self.settings.TELEGRAM_BOT_TOKEN}/getUpdates"
+            url = f"https://api.telegram.org/bot{self.bot_token}/getUpdates"
             params = {
                 "offset": self.last_update_id + 1,
                 "timeout": 10,  # Long polling timeout
@@ -92,16 +89,18 @@ class TelegramPollingService:
         if not chat_id:
             return
 
-        # Process the message
-        runtime = AgentRuntime(self.settings)
-        await runtime.initialize()
+        # Get the appropriate bot runtime for this Telegram username
+        runtime = self.bot_manager.get_bot_for_telegram(self.bot_username)
+        if not runtime:
+            logger.error(f"No bot configured for Telegram username {self.bot_username}")
+            return
 
         event = MessageEvent(
             channel=Channel.TELEGRAM,
             user_id=str(chat_id),
             text=text,
-            bot_id="default",  # TODO: Make these configurable
-            workspace_id="default",
+            bot_id=self.bot_manager.telegram_bots.get(self.bot_username, "default"),
+            workspace_id=self.bot_manager.get_workspace_id(),
             metadata={"telegram_user_id": user_id, "telegram_chat_id": chat_id},
         )
 
@@ -121,24 +120,56 @@ class TelegramPollingService:
     async def _send_message(self, chat_id: int, text: str):
         """Send a message to Telegram"""
         async with httpx.AsyncClient(timeout=10) as client:
-            url = f"https://api.telegram.org/bot{self.settings.TELEGRAM_BOT_TOKEN}/sendMessage"
+            url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
             await client.post(url, json={"chat_id": chat_id, "text": text})
 
 
-# Global polling service instance
-_polling_service: TelegramPollingService | None = None
+# Global polling service instances
+_polling_services: list[TelegramPollingService] = []
 
 
-async def start_telegram_polling(settings: Settings):
-    """Start the Telegram polling service"""
-    global _polling_service
-    if _polling_service is None:
-        _polling_service = TelegramPollingService(settings)
-    await _polling_service.start()
+async def start_telegram_polling(bot_manager: BotManager):
+    """Start Telegram polling services for all configured Telegram bots"""
+    global _polling_services
+
+    # Collect all Telegram bot configurations with their tokens
+    telegram_bot_configs = []  # List of (bot_token, bot_username) tuples
+
+    for bot_id, runtime in bot_manager.bots.items():
+        # Check each channel in this bot's settings
+        for channel_path, channel_config in runtime.settings.channel_configs.items():
+            if channel_path.startswith("telegram:"):
+                bot_username = channel_path[9:]  # Remove "telegram:" prefix
+                bot_token = channel_config.get("bot_token")
+
+                if bot_token:
+                    telegram_bot_configs.append((bot_token, bot_username))
+                    logger.info(
+                        f"Found Telegram bot config: {bot_username} -> {bot_id}"
+                    )
+
+    # Remove duplicate token/username combinations
+    unique_telegram_configs = list(set(telegram_bot_configs))
+
+    # Start a polling service for each unique Telegram bot token/username
+    for bot_token, bot_username in unique_telegram_configs:
+        logger.info(f"Starting Telegram polling service for {bot_username}")
+        service = TelegramPollingService(bot_token, bot_manager, bot_username)
+        _polling_services.append(service)
+        await service.start()
+
+    if unique_telegram_configs:
+        logger.info(f"Started {len(unique_telegram_configs)} Telegram polling services")
+    else:
+        logger.info("No Telegram bots configured")
 
 
 async def stop_telegram_polling():
-    """Stop the Telegram polling service"""
-    global _polling_service
-    if _polling_service:
-        await _polling_service.stop()
+    """Stop all Telegram polling services"""
+    global _polling_services
+
+    for service in _polling_services:
+        await service.stop()
+
+    _polling_services.clear()
+    logger.info("All Telegram polling services stopped")

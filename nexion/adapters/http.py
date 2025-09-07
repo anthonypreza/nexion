@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -18,9 +20,15 @@ class ChatIn(BaseModel):
     thread_id: str | None = None
 
 
+class NewChatIn(BaseModel):
+    bot_id: str = "default"
+    user_id: str
+
+
 def auth(
     authorization: str | None = Header(None),
 ):
+    """Legacy global auth function - kept for backward compatibility."""
     # Get HTTP key from workspace config
     bridge = get_config_bridge()
     workspace_config = bridge.get_yaml_config()
@@ -31,6 +39,31 @@ def auth(
 
     if bot_http_key and authorization != f"Bearer {bot_http_key}":
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+async def create_route_auth(path: str):
+    """Create an async route-specific auth function that checks the API key for this specific path."""
+
+    async def route_auth(authorization: str | None = Header(None)):
+        bot_manager = await get_bot_manager()
+
+        # Get the bot runtime for this path
+        runtime = bot_manager.get_bot_for_http_path(path)
+        if not runtime:
+            raise HTTPException(
+                status_code=404, detail=f"No bot configured for path {path}"
+            )
+
+        # Get the API key for this specific path from the bot's channel configs
+        expected_key = runtime.settings.channel_configs.get(path, {}).get("api_key")
+
+        if expected_key and authorization != f"Bearer {expected_key}":
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        elif not expected_key:
+            # No API key configured for this route - allow access (backward compatibility)
+            pass
+
+    return route_auth
 
 
 def create_chat_handler(path: str):
@@ -68,6 +101,167 @@ def create_chat_handler(path: str):
     return chat_handler
 
 
+def create_history_handler(path: str):
+    """Create a history handler function for a specific path."""
+
+    async def history_handler(
+        user_id: str,
+        thread_id: str | None = None,
+        bot_manager: BotManager = Depends(get_bot_manager),
+    ):
+        logger.info(f"Fetching conversation history for user {user_id} on path {path}")
+
+        # Get the bot for this path
+        runtime = bot_manager.get_bot_for_http_path(path)
+        if not runtime:
+            raise HTTPException(
+                status_code=404, detail=f"No bot configured for path {path}"
+            )
+
+        # Get conversation from storage
+        if not runtime.store:
+            return {"messages": []}
+
+        try:
+            # Extract bot_id from path
+            bot_id = bot_manager.http_routes.get(path, "default")
+            workspace_id = bot_manager.get_workspace_id()
+
+            # Get or create conversation
+            conversation = await runtime.store.get_or_create_conversation(
+                workspace_id=workspace_id,
+                bot_id=bot_id,
+                channel_ref="http",
+                user_ref=user_id,
+                thread_id=thread_id,
+            )
+
+            # Get conversation history
+            messages = await runtime.store.get_conversation_history(
+                conversation.id, limit=50
+            )
+
+            # Filter out tool call requests/results; only show human/assistant conversation
+            filtered_messages = []
+            for msg in messages:
+                meta = msg.message_metadata
+                # Exclude explicit tool result messages (OpenAI: role "tool")
+                if msg.role == "tool":
+                    continue
+                # Exclude tool results stored as user messages (Anthropic flow)
+                if meta.get("is_tool_result") is True:
+                    continue
+
+                # Try to extract user-visible text if content is structured
+                visible_text = None
+                try:
+                    parsed = json.loads(msg.content)
+                    if isinstance(parsed, list):
+                        texts = [
+                            b.get("text", "")
+                            for b in parsed
+                            if isinstance(b, dict) and b.get("type") == "text"
+                        ]
+                        visible_text = "\n\n".join(t for t in texts if t)
+                except Exception:
+                    pass
+
+                # Hide assistant tool-call-only messages (no text blocks)
+                if (
+                    msg.role == "assistant"
+                    and meta.get("tool_calls")
+                    and not (visible_text or (msg.content or "").strip())
+                ):
+                    continue
+
+                # If structured, replace content with extracted text
+                if visible_text is not None:
+                    msg_for_list = type(msg)(**msg.__dict__)
+                    msg_for_list.content = visible_text
+                    filtered_messages.append(msg_for_list)
+                else:
+                    filtered_messages.append(msg)
+
+            # Convert to JSON format for frontend
+            history = []
+            for msg in filtered_messages:
+                history.append(
+                    {
+                        "role": msg.role,
+                        "content": msg.content,
+                        "created_at": msg.created_at.isoformat()
+                        if msg.created_at
+                        else None,
+                    }
+                )
+
+            return {"messages": history}
+
+        except Exception as e:
+            logger.error(f"Error fetching conversation history: {e}")
+            return {"messages": []}
+
+    return history_handler
+
+
+def create_new_chat_handler(path: str):
+    """Create a new chat handler function for a specific path."""
+
+    async def new_chat_handler(
+        payload: NewChatIn, bot_manager: BotManager = Depends(get_bot_manager)
+    ):
+        logger.info(
+            f"Creating new conversation for user {payload.user_id} on path {path}"
+        )
+
+        # Get the bot for this path
+        runtime = bot_manager.get_bot_for_http_path(path)
+        if not runtime:
+            raise HTTPException(
+                status_code=404, detail=f"No bot configured for path {path}"
+            )
+
+        if not runtime.store:
+            raise HTTPException(
+                status_code=500, detail="Storage not configured for this bot"
+            )
+
+        try:
+            # Extract bot_id from path
+            bot_id = bot_manager.http_routes.get(path, "default")
+            workspace_id = bot_manager.get_workspace_id()
+
+            # Create a new conversation ID to force a new conversation
+            # We do this by using a unique thread_id
+            import uuid
+
+            new_thread_id = str(uuid.uuid4())
+
+            # Create new conversation
+            conversation = await runtime.store.get_or_create_conversation(
+                workspace_id=workspace_id,
+                bot_id=bot_id,
+                channel_ref="http",
+                user_ref=payload.user_id,
+                thread_id=new_thread_id,
+            )
+
+            logger.info(f"Created new conversation: {conversation.id}")
+            return {
+                "conversation_id": conversation.id,
+                "thread_id": new_thread_id,
+                "success": True,
+            }
+
+        except Exception as e:
+            logger.error(f"Error creating new conversation: {e}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to create new conversation: {str(e)}"
+            ) from e
+
+    return new_chat_handler
+
+
 async def register_dynamic_routes():
     """Register dynamic routes based on bot manager configuration."""
     bot_manager = await get_bot_manager()
@@ -75,8 +269,35 @@ async def register_dynamic_routes():
     for path, bot_id in bot_manager.http_routes.items():
         logger.info(f"Registering HTTP route: {path}")
         handler = create_chat_handler(path)
+        route_auth_func = await create_route_auth(path)
         router.add_api_route(
-            path, handler, methods=["POST"], dependencies=[Depends(auth)]
+            path, handler, methods=["POST"], dependencies=[Depends(route_auth_func)]
+        )
+
+        # Register history endpoint
+        history_path = path + "/history"
+        logger.info(f"Registering history route: {history_path}")
+        history_handler = create_history_handler(path)
+        history_auth_func = await create_route_auth(path)  # Use same auth as main route
+        router.add_api_route(
+            history_path,
+            history_handler,
+            methods=["GET"],
+            dependencies=[Depends(history_auth_func)],
+        )
+
+        # Register new chat endpoint
+        new_chat_path = path + "/new"
+        logger.info(f"Registering new chat route: {new_chat_path}")
+        new_chat_handler = create_new_chat_handler(path)
+        new_chat_auth_func = await create_route_auth(
+            path
+        )  # Use same auth as main route
+        router.add_api_route(
+            new_chat_path,
+            new_chat_handler,
+            methods=["POST"],
+            dependencies=[Depends(new_chat_auth_func)],
         )
 
         # Also create a UI route for each bot
@@ -160,6 +381,8 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
             .nav-link:hover {{ background: #007bff; color: white; }}
             .nav-link.active {{ background: #007bff; color: white; }}
             .bot-title {{ color: #007bff; margin-bottom: 10px; }}
+            .new-chat-btn {{ background: #28a745; margin-left: 10px; }}
+            .new-chat-btn:hover {{ background: #218838; }}
         </style>
     </head>
     <body>
@@ -185,6 +408,7 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
             <div class="input-group">
                 <input type="text" id="messageInput" placeholder="Type your message..." onkeypress="handleEnter(event)">
                 <button onclick="sendMessage()" id="sendBtn">Send</button>
+                <button onclick="newChat()" id="newChatBtn" class="new-chat-btn">New Chat</button>
             </div>
         </div>
 
@@ -192,7 +416,9 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
             const messages = document.getElementById('messages');
             const messageInput = document.getElementById('messageInput');
             const sendBtn = document.getElementById('sendBtn');
+            const newChatBtn = document.getElementById('newChatBtn');
             let userId = localStorage.getItem('nexion_user_id') || 'user_' + Date.now();
+            let currentThreadId = null; // Track current conversation thread
             localStorage.setItem('nexion_user_id', userId);
             document.getElementById('userId').value = userId;
 
@@ -204,11 +430,105 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
                 messages.scrollTop = messages.scrollHeight;
             }}
 
+            function clearMessages() {{
+                messages.innerHTML = '';
+            }}
+
             function handleEnter(event) {{
                 if (event.key === 'Enter' && !event.shiftKey) {{
                     event.preventDefault();
                     sendMessage();
                 }}
+            }}
+
+            async function loadConversationHistory() {{
+                const userId = document.getElementById('userId').value || 'anonymous';
+                const apiKey = document.getElementById('apiKey').value;
+
+                try {{
+                    const headers = {{}};
+                    if (apiKey) {{
+                        headers['Authorization'] = `Bearer ${{apiKey}}`;
+                    }}
+
+                    let url = '{current_path}/history?user_id=' + encodeURIComponent(userId);
+                    if (currentThreadId) {{
+                        url += '&thread_id=' + encodeURIComponent(currentThreadId);
+                    }}
+
+                    const response = await fetch(url, {{
+                        method: 'GET',
+                        headers
+                    }});
+
+                    if (!response.ok) {{
+                        console.error('Failed to load conversation history');
+                        return;
+                    }}
+
+                    const data = await response.json();
+                    clearMessages();
+
+                    if (data.messages && data.messages.length > 0) {{
+                        data.messages.forEach(msg => {{
+                            addMessage(msg.content, msg.role === 'user');
+                        }});
+                    }} else {{
+                        // Add welcome message if no history
+                        addMessage('Hi! I\\'m your {current_bot_id.title()} bot. Ask me anything!');
+                    }}
+
+                }} catch (error) {{
+                    console.error('Error loading conversation history:', error);
+                    addMessage('Hi! I\\'m your {current_bot_id.title()} bot. Ask me anything!');
+                }}
+            }}
+
+            async function newChat() {{
+                const userId = document.getElementById('userId').value || 'anonymous';
+                const apiKey = document.getElementById('apiKey').value;
+
+                newChatBtn.disabled = true;
+                newChatBtn.textContent = 'Creating...';
+
+                try {{
+                    const headers = {{
+                        'Content-Type': 'application/json'
+                    }};
+
+                    if (apiKey) {{
+                        headers['Authorization'] = `Bearer ${{apiKey}}`;
+                    }}
+
+                    const response = await fetch('{current_path}/new', {{
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({{
+                            user_id: userId,
+                            bot_id: '{current_bot_id}'
+                        }})
+                    }});
+
+                    if (!response.ok) {{
+                        const error = await response.json();
+                        throw new Error(error.detail || `HTTP ${{response.status}}`);
+                    }}
+
+                    const data = await response.json();
+                    if (data.success) {{
+                        currentThreadId = data.thread_id; // Store the new thread ID
+                        clearMessages();
+                        await loadConversationHistory(); // Reload to reflect fresh state
+                        messageInput.focus();
+                    }}
+
+                }} catch (error) {{
+                    addMessage(`Error creating new chat: ${{error.message}}`, false);
+                    console.error('New chat error:', error);
+                }}
+
+                newChatBtn.disabled = false;
+                newChatBtn.textContent = 'New Chat';
             }}
 
             async function sendMessage() {{
@@ -238,7 +558,8 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
                         body: JSON.stringify({{
                             user_id: userId,
                             message: message,
-                            bot_id: '{current_bot_id}'
+                            bot_id: '{current_bot_id}',
+                            thread_id: currentThreadId
                         }})
                     }});
 
@@ -247,8 +568,9 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
                         throw new Error(error.detail || `HTTP ${{response.status}}`);
                     }}
 
-                    const data = await response.json();
-                    addMessage(data.reply);
+                    await response.json();
+                    // After sending, reload entire conversation history to stay in sync
+                    await loadConversationHistory();
 
                 }} catch (error) {{
                     addMessage(`Error: ${{error.message}}`, false);
@@ -260,11 +582,11 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
                 messageInput.focus();
             }}
 
-            // Focus on input when page loads
-            messageInput.focus();
-
-            // Add welcome message
-            addMessage('Hi! I\\'m your {current_bot_id.title()} bot. Ask me anything!');
+            // Load conversation history when page loads
+            document.addEventListener('DOMContentLoaded', function() {{
+                loadConversationHistory();
+                messageInput.focus();
+            }});
         </script>
     </body>
     </html>

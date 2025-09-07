@@ -1,18 +1,17 @@
 workspace: simple-http-bot
-profiles: [default, dev]
-
-bots:
-  - id: simple-bot
-    channels:
-      - "http:/api/chat"
-    system_prompt: prompts/system.md
-    model: openai:gpt-4o-mini
-    tools: []
 
 providers:
   openai:
     api_key: env:OPENAI_API_KEY
+    max_tokens: 1024
 
 adapters:
   http:
     api_key: env:BOT_HTTP_KEY
+
+bots:
+  - id: simple-bot
+    model: openai:gpt-4o-mini
+    system_prompt: prompts/system.md
+    channels:
+      - http:/api/chat

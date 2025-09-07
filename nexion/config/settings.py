@@ -1,22 +1,30 @@
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseSettings
 
 
-class Settings(BaseSettings):
-    # LLM
-    OPENAI_API_KEY: str | None = None
-    ANTHROPIC_API_KEY: str | None = None
-    MODEL: str = "openai:gpt-4o-mini"
+class BotSettings(BaseSettings):
+    """Settings for a single bot instance."""
 
-    # HTTP
-    BOT_HTTP_KEY: str | None = None
+    # Bot identity
+    bot_id: str
 
-    # Telegram
-    TELEGRAM_BOT_TOKEN: str | None = None
+    # LLM Configuration
+    openai_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    model: str = "openai:gpt-4o-mini"
+    max_tokens: int | None = 1024
 
-    # Prompts
-    SYSTEM_PROMPT_PATH: str = "prompts/system.md"
+    # System prompt
+    system_prompt_path: str = "prompts/system.md"
+
+    # Channel-specific adapter configurations
+    # Format: {"http:/api/support": {"api_key": "key123"}, "telegram:@supportbot": {"bot_token": "token456"}}
+    channel_configs: dict[str, dict[str, Any]] = {}
+
+    # Tools
+    tools: list[str] = []
 
     def __init__(self, **kwargs):
         # Load .env from current working directory first
@@ -33,3 +41,7 @@ class Settings(BaseSettings):
         # Allow environment variable overrides
         env_file = None  # We handle .env loading manually
         case_sensitive = False
+
+
+# Legacy alias for backwards compatibility during transition
+Settings = BotSettings
