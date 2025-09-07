@@ -1,0 +1,25 @@
+id: faq
+entry: start
+nodes:
+  start:
+    type: prompt
+    system: {{bot.system_prompt}}
+    user: {{event.text}}
+    retrieve:
+      kb: support-kb
+      top_k: 4
+    on:
+      tool_call: handle_tool
+      reply: end
+
+  handle_tool:
+    type: tool
+    tool: kb.search
+    args:
+      query: {{event.text}}
+      kb: support-kb
+      top_k: 3
+    next: end
+
+  end:
+    type: end
