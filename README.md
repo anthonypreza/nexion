@@ -19,7 +19,7 @@ Nexion lets you build AI-powered bots using simple YAML configuration and deploy
 
 ```bash
 # Clone and install
-git clone https://github.com/your-repo/nexion
+git clone https://github.com/anthonypreza/nexion
 cd nexion
 uv sync
 ```
