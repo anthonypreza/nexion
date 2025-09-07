@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from ..adapters.http import register_dynamic_routes
 from ..adapters.http import router as http_router
 from ..adapters.telegram import start_telegram_polling, stop_telegram_polling
-from ..config.bridge import get_settings_from_yaml
+from ..core.bot_manager import get_bot_manager
 from ..utils.logging import get_logger, setup_logging
 
 
@@ -17,11 +17,10 @@ async def lifespan(app: FastAPI):
 
     # Startup
     logger.info("🚀 Starting Nexion server...")
-    settings = get_settings_from_yaml()
-    logger.info(f"📝 Configuration loaded (model: {settings.MODEL})")
+    bot_manager = await get_bot_manager()
 
     # Start telegram polling
-    await start_telegram_polling(settings)
+    await start_telegram_polling(bot_manager)
 
     # Get the port from environment variable set by run()
     import os

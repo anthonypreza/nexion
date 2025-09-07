@@ -1,6 +1,6 @@
 from ..config.bridge import get_config_bridge
-from ..config.settings import Settings
-from ..config.yaml import BotConfig, WorkspaceConfig
+from ..config.settings import BotSettings
+from ..config.yaml import BotConfig, ChannelConfig, WorkspaceConfig
 from ..core.agent import AgentRuntime
 from ..storage import ConversationStore, SQLiteStore
 
@@ -14,34 +14,84 @@ class BotManager:
         self.http_routes: dict[str, str] = {}
         self.telegram_bots: dict[str, str] = {}
 
-    def _create_settings_for_bot(self, bot_config: BotConfig) -> Settings:
-        """Convert BotConfig to Settings for AgentRuntime."""
-        # Get provider keys
+    def _create_settings_for_bot(self, bot_config: BotConfig) -> BotSettings:
+        """Convert BotConfig to BotSettings with precedence: bot-level → global → defaults."""
+
+        # Provider configuration with precedence
         openai_key = None
         anthropic_key = None
+        max_tokens = 1024  # Default
 
+        # Get global provider configs as defaults
         if "openai" in self.workspace_config.providers:
-            openai_key = self.workspace_config.providers["openai"].api_key
+            global_openai = self.workspace_config.providers["openai"]
+            openai_key = global_openai.api_key
+            if global_openai.max_tokens:
+                max_tokens = global_openai.max_tokens
+
         if "anthropic" in self.workspace_config.providers:
-            anthropic_key = self.workspace_config.providers["anthropic"].api_key
+            global_anthropic = self.workspace_config.providers["anthropic"]
+            anthropic_key = global_anthropic.api_key
+            if global_anthropic.max_tokens:
+                max_tokens = global_anthropic.max_tokens
 
-        # Get adapter settings from workspace config
-        http_key = None
-        telegram_token = None
+        # Override with bot-level provider configs (higher precedence)
+        if "openai" in bot_config.provider_config:
+            bot_openai = bot_config.provider_config["openai"]
+            if bot_openai.api_key:
+                openai_key = bot_openai.api_key
+            if bot_openai.max_tokens:
+                max_tokens = bot_openai.max_tokens
 
-        if "http" in self.workspace_config.adapters:
-            http_key = self.workspace_config.adapters["http"].api_key
-        if "telegram" in self.workspace_config.adapters:
-            telegram_token = self.workspace_config.adapters["telegram"].bot_token
+        if "anthropic" in bot_config.provider_config:
+            bot_anthropic = bot_config.provider_config["anthropic"]
+            if bot_anthropic.api_key:
+                anthropic_key = bot_anthropic.api_key
+            if bot_anthropic.max_tokens:
+                max_tokens = bot_anthropic.max_tokens
 
-        return Settings(
-            OPENAI_API_KEY=openai_key,
-            ANTHROPIC_API_KEY=anthropic_key,
-            MODEL=bot_config.model,
-            SYSTEM_PROMPT_PATH=bot_config.system_prompt or "prompts/system.md",
-            BOT_HTTP_KEY=http_key,
-            TELEGRAM_BOT_TOKEN=telegram_token,
+        # Step 3: Build channel-specific configurations
+        channel_configs = {}
+        for channel in bot_config.channels:
+            if isinstance(channel, str):
+                # Old format - use global adapter settings as fallback
+                channel_configs[channel] = self._get_global_adapter_config_for_channel(
+                    channel
+                )
+            elif isinstance(channel, ChannelConfig):
+                # New format - merge bot-level config with global fallback
+                global_config = self._get_global_adapter_config_for_channel(
+                    channel.channel
+                )
+                # Bot-level config takes precedence
+                merged_config = {**global_config, **channel.adapter_config}
+                channel_configs[channel.channel] = merged_config
+
+        return BotSettings(
+            bot_id=bot_config.id,
+            openai_api_key=openai_key,
+            anthropic_api_key=anthropic_key,
+            model=bot_config.model,
+            max_tokens=max_tokens,
+            system_prompt_path=bot_config.system_prompt or "prompts/system.md",
+            channel_configs=channel_configs,
         )
+
+    def _get_global_adapter_config_for_channel(self, channel: str) -> dict[str, str]:
+        """Get global adapter configuration for a channel string."""
+        if channel.startswith("http:"):
+            if "http" in self.workspace_config.adapters:
+                http_adapter = self.workspace_config.adapters["http"]
+                return {"api_key": http_adapter.api_key} if http_adapter.api_key else {}
+        elif channel.startswith("telegram:"):
+            if "telegram" in self.workspace_config.adapters:
+                telegram_adapter = self.workspace_config.adapters["telegram"]
+                return (
+                    {"bot_token": telegram_adapter.bot_token}
+                    if telegram_adapter.bot_token
+                    else {}
+                )
+        return {}
 
     async def initialize(self) -> None:
         """Parse configuration and auto-register all channels."""
@@ -52,7 +102,10 @@ class BotManager:
 
             # Auto-register all channels
             for channel in bot_config.channels:
-                self._register_channel(channel, bot_config.id)
+                if isinstance(channel, str):
+                    self._register_channel(channel, bot_config.id)
+                elif isinstance(channel, ChannelConfig):
+                    self._register_channel(channel.channel, bot_config.id)
 
     def _register_channel(self, channel: str, bot_id: str):
         """Auto-register a channel for a bot."""

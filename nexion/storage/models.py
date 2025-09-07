@@ -4,6 +4,8 @@ from typing import Any
 
 from sqlmodel import Field, Relationship, SQLModel
 
+from ..core.types import ProviderMessage
+
 
 class Conversation(SQLModel, table=True):
     id: str = Field(primary_key=True)
@@ -50,5 +52,5 @@ class Message(SQLModel, table=True):
     def message_metadata(self, value: dict[str, Any]) -> None:
         self.metadata_json = json.dumps(value) if value else None
 
-    def to_llm_message(self) -> dict[str, str]:
-        return {"role": self.role, "content": self.content}
+    def to_llm_message(self) -> ProviderMessage:
+        return ProviderMessage(role=self.role, content=self.content)

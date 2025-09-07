@@ -1,24 +1,23 @@
 workspace: multiple-http-bots
-profiles: [default, dev]
-
-bots:
-  - id: faq-bot
-    channels:
-      - "http:/api/faq/chat"
-    system_prompt: prompts/faq.md
-    model: openai:gpt-5-nano
-    tools: []
-  - id: sales-bot
-    channels:
-      - "http:/api/sales/chat"
-    system_prompt: prompts/sales.md
-    model: openai:gpt-5-nano
-    tools: []
 
 providers:
   openai:
     api_key: env:OPENAI_API_KEY
+    max_tokens: 1024
 
 adapters:
   http:
     api_key: env:BOT_HTTP_KEY
+
+bots:
+  - id: faq-bot
+    model: openai:gpt-4o-mini
+    system_prompt: prompts/faq.md
+    channels:
+      - http:/api/faq/chat
+
+  - id: sales-bot
+    model: openai:gpt-4o-mini
+    system_prompt: prompts/sales.md
+    channels:
+      - http:/api/sales/chat

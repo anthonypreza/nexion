@@ -16,24 +16,23 @@ class OpenAIProvider(Provider):
             "Authorization": f"Bearer {self.api_key}",
         }
 
-    async def chat(self, model: str, messages: list[ProviderMessage]) -> str:
+    async def chat(
+        self,
+        model: str,
+        messages: list[ProviderMessage],
+        system_prompt: str | None = None,
+    ) -> str:
         url = f"{OpenAIProvider.BASE_URL}/v1/responses"
 
-        # Separate system message from user/assistant messages
-        system_message = None
-        input_messages = []
-
-        for message in messages:
-            if message.get("role") == "system":
-                system_message = message.get("content")
-            else:
-                input_messages.append(message)
-
         # Build payload with instructions field for system prompt
-        payload = {"model": model, "input": input_messages}
+        payload = {
+            "model": model,
+            "input": [message.serialize() for message in messages],
+            "max_output_tokens": self.max_tokens,
+        }
 
-        if system_message:
-            payload["instructions"] = system_message
+        if system_prompt:
+            payload["instructions"] = system_prompt
 
         async with httpx.AsyncClient(timeout=30) as client:
             res = await client.post(url, headers=self._get_headers(), json=payload)

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ..config.settings import Settings
+from ..config.settings import BotSettings
 from ..core.types import ConversationContext, MessageEvent, ProviderMessage, Reply
 from ..providers.anthropic_ import AnthropicProvider
 from ..providers.openai_ import OpenAIProvider
@@ -10,24 +10,28 @@ from ..utils.logging import get_logger
 
 
 class AgentRuntime:
-    def __init__(self, settings: Settings, store: ConversationStore | None = None):
+    def __init__(self, settings: BotSettings, store: ConversationStore | None = None):
         self.settings = settings
         self.logger = get_logger("agent")
 
         # Initialize conversation store
         self.store = store or SQLiteStore()
 
-        self.system_prompt = Path(settings.SYSTEM_PROMPT_PATH).read_text(
+        self.system_prompt = Path(settings.system_prompt_path).read_text(
             encoding="utf-8"
         )
 
-        if settings.OPENAI_API_KEY and settings.MODEL.startswith("openai"):
-            self.provider = OpenAIProvider(settings.OPENAI_API_KEY)
-            self.model = settings.MODEL.split(":", 1)[1]
+        if settings.openai_api_key and settings.model.startswith("openai"):
+            self.provider = OpenAIProvider(
+                settings.openai_api_key, max_tokens=settings.max_tokens
+            )
+            self.model = settings.model.split(":", 1)[1]
             self.logger.info(f"🤖 Using OpenAI provider with model: {self.model}")
-        elif settings.ANTHROPIC_API_KEY and settings.MODEL.startswith("anthropic"):
-            self.provider = AnthropicProvider(settings.ANTHROPIC_API_KEY)
-            self.model = settings.MODEL.split(":", 1)[1]
+        elif settings.anthropic_api_key and settings.model.startswith("anthropic"):
+            self.provider = AnthropicProvider(
+                settings.anthropic_api_key, max_tokens=settings.max_tokens
+            )
+            self.model = settings.model.split(":", 1)[1]
             self.logger.info(f"🤖 Using Anthropic provider with model: {self.model}")
         else:
             self.provider = None
@@ -67,15 +71,17 @@ class AgentRuntime:
                 conversation.id, limit=10
             )
 
-            # Build messages for LLM
-            messages = [{"role": "system", "content": self.system_prompt}]
+            # Build messages for LLM (conversation history only)
+            messages = []
 
             # Add conversation history
             for msg in history:
                 messages.append(msg.to_llm_message())
 
-            # Get response from LLM
-            reply_text = await self.provider.chat(self.model, messages)
+            # Get response from LLM with system prompt passed separately
+            reply_text = await self.provider.chat(
+                self.model, messages, self.system_prompt
+            )
 
         # Store assistant response
         await self.store.add_message(

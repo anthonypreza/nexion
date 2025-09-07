@@ -29,11 +29,16 @@ class ConfigBridge:
 
         openai_api_key = None
         anthropic_api_key = None
+        max_tokens = 1024  # Default value
 
         if "openai" in self.yaml_config.providers:
-            openai_api_key = self.yaml_config.providers["openai"].api_key
+            openai_provider = self.yaml_config.providers["openai"]
+            openai_api_key = openai_provider.api_key
+            max_tokens = openai_provider.max_tokens or max_tokens
         if "anthropic" in self.yaml_config.providers:
-            anthropic_api_key = self.yaml_config.providers["anthropic"].api_key
+            anthropic_provider = self.yaml_config.providers["anthropic"]
+            anthropic_api_key = anthropic_provider.api_key
+            max_tokens = anthropic_provider.max_tokens or max_tokens
 
         # Extract adapter settings
         bot_http_key = None
@@ -57,6 +62,7 @@ class ConfigBridge:
             OPENAI_API_KEY=openai_api_key,
             ANTHROPIC_API_KEY=anthropic_api_key,
             MODEL=model,
+            MAX_TOKENS=max_tokens,
             BOT_HTTP_KEY=bot_http_key,
             TELEGRAM_BOT_TOKEN=telegram_bot_token,
             SYSTEM_PROMPT_PATH=system_prompt_path,

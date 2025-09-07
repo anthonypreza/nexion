@@ -30,6 +30,9 @@ class ProviderMessage:
     role: str
     content: str
 
+    def serialize(self) -> dict[str, Any]:
+        return {"role": self.role, "content": self.content}
+
 
 @dataclass
 class ConversationContext:
