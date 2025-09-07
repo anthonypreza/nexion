@@ -34,6 +34,7 @@ class ProviderMessage:
 @dataclass
 class ConversationContext:
     """Context for a conversation including history and state."""
+
     conversation_id: str
     workspace_id: str
     bot_id: str

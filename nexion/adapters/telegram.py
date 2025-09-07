@@ -102,7 +102,7 @@ class TelegramPollingService:
             text=text,
             bot_id="default",  # TODO: Make these configurable
             workspace_id="default",
-            metadata={"telegram_user_id": user_id, "telegram_chat_id": chat_id}
+            metadata={"telegram_user_id": user_id, "telegram_chat_id": chat_id},
         )
 
         logger.info(

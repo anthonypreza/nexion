@@ -44,7 +44,6 @@ class ConfigBridge:
         if "telegram" in self.yaml_config.adapters:
             telegram_bot_token = self.yaml_config.adapters["telegram"].bot_token
 
-        # Get model from first bot
         model = "openai:gpt-4o-mini"
         system_prompt_path = "prompts/system.md"
 

@@ -18,7 +18,7 @@ class AgentRuntime:
         # Initialize conversation store
         self.store = store or SQLiteStore()
 
-        self.sytem_prompt = Path(settings.SYSTEM_PROMPT_PATH).read_text(
+        self.system_prompt = Path(settings.SYSTEM_PROMPT_PATH).read_text(
             encoding="utf-8"
         )
 
@@ -49,7 +49,7 @@ class AgentRuntime:
             bot_id=event.bot_id,
             channel_ref=event.channel.value,
             user_ref=event.user_id,
-            thread_id=event.thread_id
+            thread_id=event.thread_id,
         )
 
         # Store user message
@@ -57,17 +57,19 @@ class AgentRuntime:
             conversation_id=conversation.id,
             role="user",
             content=event.text,
-            metadata=event.metadata
+            metadata=event.metadata,
         )
 
         if not self.provider:
             reply_text = f"(echo) {event.text}"
         else:
             # Get conversation history
-            history = await self.store.get_conversation_history(conversation.id, limit=10)
+            history = await self.store.get_conversation_history(
+                conversation.id, limit=10
+            )
 
             # Build messages for LLM
-            messages = [{"role": "system", "content": self.sytem_prompt}]
+            messages = [{"role": "system", "content": self.system_prompt}]
 
             # Add conversation history
             for msg in history:
@@ -78,14 +80,14 @@ class AgentRuntime:
 
         # Store assistant response
         await self.store.add_message(
-            conversation_id=conversation.id,
-            role="assistant",
-            content=reply_text
+            conversation_id=conversation.id, role="assistant", content=reply_text
         )
 
         return Reply(text=reply_text)
 
-    async def get_conversation_context(self, conversation_id: str) -> Optional[ConversationContext]:
+    async def get_conversation_context(
+        self, conversation_id: str
+    ) -> Optional[ConversationContext]:
         """Get full conversation context for debugging/analysis."""
         conversation = await self.store.get_conversation_by_id(conversation_id)
         if not conversation:
@@ -93,17 +95,16 @@ class AgentRuntime:
 
         history = await self.store.get_conversation_history(conversation.id, limit=50)
         provider_messages = [
-            ProviderMessage(role=msg.role, content=msg.content)
-            for msg in history
+            ProviderMessage(role=msg.role, content=msg.content) for msg in history
         ]
 
         return ConversationContext(
             conversation_id=conversation.id,
             workspace_id=conversation.workspace_id,
             bot_id=conversation.bot_id,
-            channel_ref=conversation.channel_re,
+            channel_ref=conversation.channel_ref,
             user_ref=conversation.user_ref,
             thread_id=conversation.thread_id,
             state=conversation.state,
-            history=provider_messages
+            history=provider_messages,
         )

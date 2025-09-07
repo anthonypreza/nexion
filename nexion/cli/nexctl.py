@@ -4,7 +4,7 @@ from nexion.core.server import run
 
 app = typer.Typer(
     help="Nexion AI Agent Framework - Build and deploy multi-channel bots",
-    epilog="Visit https://github.com/your-repo/nexion for documentation and examples"
+    epilog="Visit https://github.com/your-repo/nexion for documentation and examples",
 )
 
 
@@ -15,7 +15,11 @@ def dev(port: int = typer.Option(8080, help="Port to run the development server 
 
 
 @app.command()
-def init(project_name: str = typer.Argument(".", help="Project directory name or '.' for current directory")):
+def init(
+    project_name: str = typer.Argument(
+        ".", help="Project directory name or '.' for current directory"
+    ),
+):
     """Create a new Nexion bot project with configuration templates."""
     _init_project(project_name)
 
@@ -91,7 +95,7 @@ BOT_HTTP_KEY=dev-secret
 def main(ctx: typer.Context):
     """
     Nexion AI Agent Framework - Build and deploy multi-channel bots.
-    
+
     Use 'nexctl dev' to start the development server or 'nexctl init' to create a new project.
     """
     if ctx.invoked_subcommand is None:

@@ -38,19 +38,16 @@ class Message(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     conversation: Conversation | None = Relationship(back_populates="messages")
-    
+
     @property
     def message_metadata(self) -> Dict[str, Any]:
         if not self.metadata_json:
             return {}
         return json.loads(self.metadata_json)
-    
+
     @message_metadata.setter
     def message_metadata(self, value: Dict[str, Any]) -> None:
         self.metadata_json = json.dumps(value) if value else None
-    
+
     def to_llm_message(self) -> Dict[str, str]:
-        return {
-            "role": self.role,
-            "content": self.content
-        }
+        return {"role": self.role, "content": self.content}
