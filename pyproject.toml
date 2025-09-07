@@ -1,0 +1,19 @@
+[project]
+name = "nexion"
+version = "0.1.0"
+description = "An open-source bot factory: define once, deploy everywhere with HTTP, Telegram, Discord, and more."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.116.1",
+    "httpx>=0.28.1",
+    "pydantic>=1.10.22",
+    "typer>=0.17.4",
+    "uvicorn[standard]>=0.35.0",
+    "pyyaml>=6.0",
+]
+
+scripts.nexctl = "nexion.cli.nexctl:app"
+
+[tool.uv]
+package = true

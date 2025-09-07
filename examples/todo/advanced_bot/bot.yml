@@ -1,0 +1,45 @@
+workspace: advanced-bot
+profiles: [default, dev]
+
+bots:
+  - id: support-bot
+    channels: 
+      - "http:/api/chat"
+      - "telegram:@supportbot"
+    system_prompt: prompts/support.md
+    flows: 
+      - flows/faq.yml
+    model: openai:gpt-4o-mini
+    tools: 
+      - http
+      - kb.search
+
+  - id: docs-bot
+    channels:
+      - "http:/api/docs-chat"  
+    system_prompt: prompts/docs.md
+    model: anthropic:claude-3-sonnet
+    tools:
+      - kb.search
+
+kb:
+  - id: docs
+    source: ./docs
+    index: bm25
+  
+  - id: support-kb
+    source: ./support-docs
+    index: bm25
+
+providers:
+  openai:
+    api_key: env:OPENAI_API_KEY
+  anthropic:
+    api_key: env:ANTHROPIC_API_KEY
+
+adapters:
+  http:
+    api_key: env:BOT_HTTP_KEY
+  telegram:
+    bot_token: env:TELEGRAM_BOT_TOKEN
+    # Using polling mode for local development
