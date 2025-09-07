@@ -1,6 +1,6 @@
 # Nexion
 
-> An open-source AI agent framework for building bots that can be deployed across multiple channels
+> An open-source AI agent framework for building LLM bots that can be deployed across multiple channels
 
 Nexion lets you build AI-powered bots using simple YAML configuration and deploy them to HTTP endpoints and Telegram. Perfect for creating support bots, documentation assistants, and interactive AI experiences.
 
