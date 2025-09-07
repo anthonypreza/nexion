@@ -53,4 +53,13 @@ class Message(SQLModel, table=True):
         self.metadata_json = json.dumps(value) if value else None
 
     def to_llm_message(self) -> ProviderMessage:
+        # Attempt to parse structured content (Anthropic-style blocks) if stored as JSON
+        parsed = None
+        try:
+            parsed = json.loads(self.content)
+        except Exception:
+            parsed = None
+
+        if isinstance(parsed, list):
+            return ProviderMessage(role=self.role, content=parsed)
         return ProviderMessage(role=self.role, content=self.content)

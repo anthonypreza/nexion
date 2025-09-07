@@ -1,8 +1,8 @@
 workspace: simple-http-bot
 
 providers:
-  anthropic:
-    api_key: env:ANTHROPIC_API_KEY
+  openai:
+    api_key: env:OPENAI_API_KEY
     max_tokens: 1024
 
 adapters:
@@ -11,7 +11,7 @@ adapters:
 
 bots:
   - id: simple-bot
-    model: anthropic:claude-sonnet-4-20250514
+    model: openai:gpt-4o-mini
     system_prompt: prompts/system.md
     channels:
       - http:/api/chat

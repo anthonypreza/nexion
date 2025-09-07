@@ -102,6 +102,8 @@ class WorkspaceConfig:
 
     workspace: str = "default"
     profiles: list[str] = field(default_factory=lambda: ["default"])
+    # Optional top-level log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    log_level: str | None = None
 
     # Core components
     bots: list[BotConfig] = field(default_factory=list)
@@ -123,6 +125,17 @@ class ConfigLoader:
             return WorkspaceConfig()
 
         logger.info(f"Loading configuration from {self.config_path}")
+
+        # Load a .env file located alongside the config (ensures env: vars resolve)
+        try:
+            env_path = self.config_path.parent / ".env"
+            if env_path.exists():
+                from dotenv import load_dotenv
+
+                load_dotenv(env_path)
+                logger.info(f"Loaded .env from {env_path}")
+        except Exception as e:
+            logger.warning(f"Could not load .env near config: {e}")
         with open(self.config_path) as f:
             raw_config = yaml.safe_load(f)
 
@@ -225,6 +238,7 @@ class ConfigLoader:
         return WorkspaceConfig(
             workspace=data.get("workspace", "default"),
             profiles=data.get("profiles", ["default"]),
+            log_level=data.get("log_level"),
             bots=bots,
             kb=kb,
             providers=providers,

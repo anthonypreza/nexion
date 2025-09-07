@@ -6,7 +6,7 @@ Nexion lets you build AI-powered bots using simple YAML configuration and deploy
 
 ## ✨ Current Features
 
-- **🤖 Multi-LLM Support**: OpenAI (GPT-4, GPT-5) and Anthropic integration with your API keys
+- **🤖 Multi-LLM Support**: OpenAI (Responses API) and Anthropic integration with your API keys
 - **🌐 Dynamic HTTP Interfaces**: Multiple bots with individual web UIs and REST APIs
 - **🎯 Multi-Bot Architecture**: Run multiple specialized bots from a single configuration
 - **📱 Telegram Integration**: Connect to Telegram bots via polling (no webhooks needed)
@@ -94,6 +94,7 @@ Visit **http://localhost:8080** to chat with your bot! 🎉
 # Root configuration
 workspace: string                 # Workspace identifier
 profiles: [string, ...]          # Configuration profiles (default: ["default"])
+log_level: string                 # Optional: DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 # Bot definitions
 bots:
@@ -102,7 +103,7 @@ bots:
     system_prompt: string         # Path to system prompt file (default: prompts/system.md)
     model: string                 # LLM model (default: "openai:gpt-4o-mini")
     flows: [string, ...]          # Flow YAML paths (coming soon)
-    tools: [string, ...]          # Enabled tools (coming soon)
+    tools: [string, ...]          # Enabled tools (names from your tool registry)
 
 # LLM provider configuration
 providers:
@@ -350,6 +351,7 @@ my-bot/
 | `ANTHROPIC_API_KEY` | Yes* | Your Anthropic API key |
 | `BOT_HTTP_KEY` | No | API key for HTTP adapter |
 | `TELEGRAM_BOT_TOKEN` | No | Your Telegram bot token |
+| `NEXION_LOG_LEVEL` | No | Global log level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
 
 *At least one LLM provider key is required
 

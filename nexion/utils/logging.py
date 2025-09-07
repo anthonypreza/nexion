@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 
 
@@ -24,11 +25,17 @@ class NexionFormatter(logging.Formatter):
         return super().format(record)
 
 
-def setup_logging(level: str = "INFO") -> None:
-    """Setup logging configuration for Nexion"""
+def setup_logging(level: str | None = None) -> None:
+    """Setup logging configuration for Nexion.
 
+    Respects env var `NEXION_LOG_LEVEL` when `level` is not provided.
+    Valid values: DEBUG, INFO, WARNING, ERROR, CRITICAL
+    """
+
+    # Resolve desired log level
+    level_str = level or os.getenv("NEXION_LOG_LEVEL", "INFO")
     # Convert string level to logging constant
-    numeric_level = getattr(logging, level.upper(), logging.INFO)
+    numeric_level = getattr(logging, level_str.upper(), logging.INFO)
 
     # Create formatter
     formatter = NexionFormatter(

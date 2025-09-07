@@ -23,6 +23,9 @@ class BotSettings(BaseSettings):
     # Format: {"http:/api/support": {"api_key": "key123"}, "telegram:@supportbot": {"bot_token": "token456"}}
     channel_configs: dict[str, dict[str, Any]] = {}
 
+    # Tools
+    tools: list[str] = []
+
     def __init__(self, **kwargs):
         # Load .env from current working directory first
         env_file = Path.cwd() / ".env"

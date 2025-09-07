@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -103,7 +105,9 @@ def create_history_handler(path: str):
     """Create a history handler function for a specific path."""
 
     async def history_handler(
-        user_id: str, bot_manager: BotManager = Depends(get_bot_manager)
+        user_id: str,
+        thread_id: str | None = None,
+        bot_manager: BotManager = Depends(get_bot_manager),
     ):
         logger.info(f"Fetching conversation history for user {user_id} on path {path}")
 
@@ -129,7 +133,7 @@ def create_history_handler(path: str):
                 bot_id=bot_id,
                 channel_ref="http",
                 user_ref=user_id,
-                thread_id=None,
+                thread_id=thread_id,
             )
 
             # Get conversation history
@@ -137,9 +141,50 @@ def create_history_handler(path: str):
                 conversation.id, limit=50
             )
 
+            # Filter out tool call requests/results; only show human/assistant conversation
+            filtered_messages = []
+            for msg in messages:
+                meta = msg.message_metadata
+                # Exclude explicit tool result messages (OpenAI: role "tool")
+                if msg.role == "tool":
+                    continue
+                # Exclude tool results stored as user messages (Anthropic flow)
+                if meta.get("is_tool_result") is True:
+                    continue
+
+                # Try to extract user-visible text if content is structured
+                visible_text = None
+                try:
+                    parsed = json.loads(msg.content)
+                    if isinstance(parsed, list):
+                        texts = [
+                            b.get("text", "")
+                            for b in parsed
+                            if isinstance(b, dict) and b.get("type") == "text"
+                        ]
+                        visible_text = "\n\n".join(t for t in texts if t)
+                except Exception:
+                    pass
+
+                # Hide assistant tool-call-only messages (no text blocks)
+                if (
+                    msg.role == "assistant"
+                    and meta.get("tool_calls")
+                    and not (visible_text or (msg.content or "").strip())
+                ):
+                    continue
+
+                # If structured, replace content with extracted text
+                if visible_text is not None:
+                    msg_for_list = type(msg)(**msg.__dict__)
+                    msg_for_list.content = visible_text
+                    filtered_messages.append(msg_for_list)
+                else:
+                    filtered_messages.append(msg)
+
             # Convert to JSON format for frontend
             history = []
-            for msg in messages:
+            for msg in filtered_messages:
                 history.append(
                     {
                         "role": msg.role,
@@ -406,7 +451,12 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
                         headers['Authorization'] = `Bearer ${{apiKey}}`;
                     }}
 
-                    const response = await fetch('{current_path}/history?user_id=' + encodeURIComponent(userId), {{
+                    let url = '{current_path}/history?user_id=' + encodeURIComponent(userId);
+                    if (currentThreadId) {{
+                        url += '&thread_id=' + encodeURIComponent(currentThreadId);
+                    }}
+
+                    const response = await fetch(url, {{
                         method: 'GET',
                         headers
                     }});
@@ -468,7 +518,7 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
                     if (data.success) {{
                         currentThreadId = data.thread_id; // Store the new thread ID
                         clearMessages();
-                        addMessage('Hi! I\\'m your {current_bot_id.title()} bot. This is a new conversation - ask me anything!');
+                        await loadConversationHistory(); // Reload to reflect fresh state
                         messageInput.focus();
                     }}
 
@@ -518,8 +568,9 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
                         throw new Error(error.detail || `HTTP ${{response.status}}`);
                     }}
 
-                    const data = await response.json();
-                    addMessage(data.reply);
+                    await response.json();
+                    // After sending, reload entire conversation history to stay in sync
+                    await loadConversationHistory();
 
                 }} catch (error) {{
                     addMessage(`Error: ${{error.message}}`, false);

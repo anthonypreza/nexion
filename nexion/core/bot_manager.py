@@ -3,6 +3,7 @@ from ..config.settings import BotSettings
 from ..config.yaml import BotConfig, ChannelConfig, WorkspaceConfig
 from ..core.agent import AgentRuntime
 from ..storage import ConversationStore, SQLiteStore
+from ..utils.logging import get_logger
 
 
 class BotManager:
@@ -13,6 +14,7 @@ class BotManager:
         self.bots: dict[str, AgentRuntime] = {}
         self.http_routes: dict[str, str] = {}
         self.telegram_bots: dict[str, str] = {}
+        self.logger = get_logger("bot_manager")
 
     def _create_settings_for_bot(self, bot_config: BotConfig) -> BotSettings:
         """Convert BotConfig to BotSettings with precedence: bot-level → global → defaults."""
@@ -75,6 +77,7 @@ class BotManager:
             max_tokens=max_tokens,
             system_prompt_path=bot_config.system_prompt or "prompts/system.md",
             channel_configs=channel_configs,
+            tools=bot_config.tools,
         )
 
     def _get_global_adapter_config_for_channel(self, channel: str) -> dict[str, str]:
@@ -100,12 +103,34 @@ class BotManager:
             agent = AgentRuntime(bot_settings, self.store)
             self.bots[bot_config.id] = agent
 
+            # Log provider/model summary for this bot
+            provider_obj = getattr(agent, "provider", None)
+            if provider_obj:
+                provider_type = provider_obj.__class__.__name__.replace("Provider", "")
+                provider_name = provider_type.lower()
+                # agent.model is the resolved provider-specific name (without prefix)
+                self.logger.info(
+                    f"🧩 Bot '{bot_config.id}': provider={provider_name} model={agent.model} (configured={bot_config.model})"
+                )
+            else:
+                self.logger.info(
+                    f"🧩 Bot '{bot_config.id}': provider=none (echo mode) model={bot_config.model}"
+                )
+
             # Auto-register all channels
             for channel in bot_config.channels:
                 if isinstance(channel, str):
                     self._register_channel(channel, bot_config.id)
                 elif isinstance(channel, ChannelConfig):
                     self._register_channel(channel.channel, bot_config.id)
+
+            # Log channels configured for this bot
+            channels = [
+                c if isinstance(c, str) else c.channel for c in bot_config.channels
+            ]
+            self.logger.info(
+                f"   ↳ channels: {', '.join(channels) if channels else '(none)'}"
+            )
 
     def _register_channel(self, channel: str, bot_id: str):
         """Auto-register a channel for a bot."""
