@@ -42,4 +42,3 @@ adapters:
     api_key: env:BOT_HTTP_KEY
   telegram:
     bot_token: env:TELEGRAM_BOT_TOKEN
-    # Using polling mode for local development
