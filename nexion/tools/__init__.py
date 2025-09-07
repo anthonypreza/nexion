@@ -48,12 +48,6 @@ def register_tools(module_name: str | None = None):
     print(f"=' Registered {registered_count} tools from module {module_name}")
 
 
-def register_builtin_tools():
-    """No built-in tools are registered by default for safety."""
-    # Intentionally empty: users should explicitly define and register their own tools.
-    return None
-
-
 def list_registered_tools() -> list[str]:
     """List all currently registered tools."""
     registry = get_tool_registry()
@@ -69,7 +63,6 @@ __all__ = [
     "ToolSchema",
     "ToolResult",
     "register_tools",
-    "register_builtin_tools",
     "list_registered_tools",
     "get_tool_registry",
 ]
