@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 
 class BotSettings(BaseSettings):

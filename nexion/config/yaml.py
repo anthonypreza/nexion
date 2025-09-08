@@ -104,6 +104,8 @@ class WorkspaceConfig:
     profiles: list[str] = field(default_factory=lambda: ["default"])
     # Optional top-level log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     log_level: str | None = None
+    # Optional MCP configuration file path
+    mcp_config: str | None = None
 
     # Core components
     bots: list[BotConfig] = field(default_factory=list)
@@ -239,6 +241,7 @@ class ConfigLoader:
             workspace=data.get("workspace", "default"),
             profiles=data.get("profiles", ["default"]),
             log_level=data.get("log_level"),
+            mcp_config=data.get("mcp_config"),
             bots=bots,
             kb=kb,
             providers=providers,

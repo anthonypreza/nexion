@@ -24,10 +24,16 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
 
+    # Get config path from environment (set by run function)
+    import os
+
+    config_path_str = os.environ.get("NEXION_CONFIG_PATH")
+    config_path = Path(config_path_str) if config_path_str else None
+
     # Peek at YAML for optional log_level before initializing logging
     level = None
     try:
-        cfg = ConfigLoader().load()
+        cfg = ConfigLoader(config_path).load()
         level = cfg.log_level
     except Exception:
         level = None
@@ -35,10 +41,16 @@ async def lifespan(app: FastAPI):
     setup_logging(level)
     logger = get_logger("server")
 
+    # Log which config file is being used
+    if config_path:
+        logger.info(f"📄 Using configuration file: {config_path}")
+    else:
+        logger.info("📄 Using default configuration file: bot.yml")
+
     # Startup
     logger.info("🚀 Starting Nexion server...")
-    bot_manager = await get_bot_manager()
-    # Summarize providers/models for all bots after initialization
+    bot_manager = await get_bot_manager(config_path)
+    # Summarize providers/models/tools for all bots after initialization
     try:
         for bot_id, agent in bot_manager.bots.items():
             provider_obj = getattr(agent, "provider", None)
@@ -65,6 +77,22 @@ async def lifespan(app: FastAPI):
             logger.info(
                 f"   ↳ channels: {', '.join(channels) if channels else '(none)'}"
             )
+
+            # Log tools available to this bot
+            bot_tools = agent.settings.tools
+            available_tools = agent.tool_registry.list_tools()
+            enabled_tools = [tool for tool in bot_tools if tool in available_tools]
+            disabled_tools = [tool for tool in bot_tools if tool not in available_tools]
+
+            if enabled_tools:
+                logger.info(f"   ↳ tools: {', '.join(enabled_tools)}")
+            if disabled_tools:
+                logger.warning(
+                    f"   ↳ disabled tools: {', '.join(disabled_tools)} (not found in registry)"
+                )
+            if not bot_tools:
+                logger.info("   ↳ tools: (none configured)")
+
     except Exception as e:
         logger.warning(f"Could not log bot provider summary: {e}")
 
@@ -102,12 +130,14 @@ async def create_app() -> FastAPI:
     return app
 
 
-def run(port: int = 8080):
-    # Store port for the lifespan function
+def run(port: int = 8080, config_path: Path | None = None):
+    # Store port and config path for the lifespan function
     import asyncio
     import os
 
     os.environ["NEXION_SERVER_PORT"] = str(port)
+    if config_path:
+        os.environ["NEXION_CONFIG_PATH"] = str(config_path)
 
     # Create the app with dynamic routes
     app = asyncio.run(create_app())

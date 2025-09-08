@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from ..config.bridge import get_config_bridge
 from ..config.settings import BotSettings
 from ..config.yaml import BotConfig, ChannelConfig, WorkspaceConfig
@@ -100,7 +102,12 @@ class BotManager:
         """Parse configuration and auto-register all channels."""
         for bot_config in self.workspace_config.bots:
             bot_settings = self._create_settings_for_bot(bot_config)
-            agent = AgentRuntime(bot_settings, self.store)
+            agent = AgentRuntime(
+                bot_settings, self.store, workspace_config=self.workspace_config
+            )
+            await (
+                agent.initialize()
+            )  # Initialize agent runtime (includes MCP discovery)
             self.bots[bot_config.id] = agent
 
             # Log provider/model summary for this bot
@@ -167,11 +174,11 @@ class BotManager:
 _bot_manager: BotManager | None = None
 
 
-async def get_bot_manager() -> BotManager:
+async def get_bot_manager(config_path: Path | None = None) -> BotManager:
     """Get or create the global bot manager."""
     global _bot_manager
     if _bot_manager is None:
-        bridge = get_config_bridge()
+        bridge = get_config_bridge(config_path)
         workspace_config = bridge.get_yaml_config()
         store = SQLiteStore()
         await store.initialize()  # Initialize the database schema

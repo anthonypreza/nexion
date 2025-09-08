@@ -6,14 +6,24 @@ from nexion.core.server import run
 
 app = typer.Typer(
     help="Nexion AI Agent Framework - Build and deploy multi-channel bots",
-    epilog="Visit https://github.com/your-repo/nexion for documentation and examples",
+    epilog="Visit https://github.com/anthonypreza/nexion for documentation and examples",
 )
 
 
 @app.command()
-def dev(port: int = typer.Option(8080, help="Port to run the development server on")):
+def dev(
+    port: int = typer.Option(8080, help="Port to run the development server on"),
+    config: str = typer.Option(
+        "bot.yml", "--config", "-c", help="Path to the bot configuration file"
+    ),
+):
     """Start the Nexion development server with web UI and API endpoints."""
-    run(port=port)
+    config_path = Path(config)
+    if not config_path.exists():
+        typer.echo(f"❌ Configuration file not found: {config_path}", err=True)
+        raise typer.Exit(1)
+
+    run(port=port, config_path=config_path)
 
 
 @app.command()
