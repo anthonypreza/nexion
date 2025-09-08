@@ -9,12 +9,15 @@ class ToolRegistry:
 
     def __init__(self):
         self._tools: dict[str, BaseTool] = {}
-        self._functions: dict[str, list[Callable]] = {}
+        self._functions: dict[str, Callable] = {}
         self.logger = get_logger("tools")
 
     def register_tool(self, tool_instance: BaseTool):
         """Register a new tool."""
         self._tools[tool_instance.name] = tool_instance
+        self.logger.debug(
+            f"Registered tool: {tool_instance.name} ({type(tool_instance).__name__})"
+        )
 
     def register_function(self, func: Callable):
         """Register a decorated function as a tool."""

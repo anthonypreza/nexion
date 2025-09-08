@@ -19,7 +19,7 @@ bots:
   - id: my-bot
     tools:
       - weather       # Your custom tool
-      - calculate     # Another custom tool
+      - add           # Safe add tool (two integers)
       - fetch_joke    # Example API fetch tool
 ```
 
@@ -77,14 +77,14 @@ def get_weather(city: str, units: str = "celsius") -> dict:
 
 ### Tool with Documentation
 ```python
-@tool(name="calculate", description="Perform calculations")
-def calculate(expression: str) -> dict:
-    """Evaluate a mathematical expression.
+@tool(name="add", description="Add two integers and return the sum")
+def add(a: int, b: int) -> dict:
+    """Add two integers.
 
-    expression: A math expression like '2 + 2' or '10 * 5'
+    a: First integer
+    b: Second integer
     """
-    result = eval(expression)  # Use a safer parser in production!
-    return {"result": result}
+    return {"a": a, "b": b, "sum": a + b}
 ```
 
 ### Example: Simple API Fetch Tool (jokes)
@@ -115,11 +115,11 @@ def fetch_joke(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
 
 Run the example:
 ```bash
-cd examples/tools_example
+cd examples/tools-example
 nexctl dev           # Starts the bot with auto-discovered tools
 ```
 
 Chat with your bot and try:
 - "What's the weather in Tokyo?"
-- "Calculate 15 * 24"
+- "Add 15 and 24"
 - "Fetch a joke"

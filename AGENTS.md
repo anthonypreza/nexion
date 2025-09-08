@@ -34,6 +34,31 @@
 - No built-in generic HTTP tool; create narrow tools (e.g., `fetch_joke`) under `examples/`.
 - Logging level: set `log_level` in `bot.yml` or `NEXION_LOG_LEVEL` env.
 
+## MCP Integration
+- Define MCP servers in `mcp.json` in the workspace directory. Example:
+  ```json
+  {
+    "mcpServers": {
+      "filesystem": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+        "env": {}
+      },
+      "github": {
+        "type": "http",
+        "url": "https://api.githubcopilot.com/mcp/",
+        "headers": {
+          "Authorization": "Bearer ${env:GITHUB_PERSONAL_ACCESS_TOKEN}"
+        }
+      }
+    }
+  }
+  ```
+- Env substitution supports `env:VAR`, `${env:VAR}`, and inline `env:VAR` within strings. Applied to stdio `env` values, and HTTP headers/URL.
+- MCP tools are auto-registered as `mcp__<server>__<tool>` and can be enabled per-bot via `tools:` in `bot.yml`.
+- Embedded resources in MCP responses are fetched via `read_resource` and returned as text when possible (e.g., GitHub file contents).
+- Logs include MCP content summaries and fetched resource summaries at INFO (previews at DEBUG).
+
 ## Architecture Overview (Brief)
 - Provider chosen by `model` prefix (`openai:`/`anthropic:`).
 - OpenAI uses the Responses API; Anthropic uses Messages API with tool_use/tool_result.

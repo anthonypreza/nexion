@@ -3,8 +3,8 @@ entry: start
 nodes:
   start:
     type: prompt
-    system: {{bot.system_prompt}}
-    user: {{event.text}}
+    system: "{{bot.system_prompt}}"
+    user: "{{event.text}}"
     retrieve:
       kb: support-kb
       top_k: 4
@@ -16,7 +16,7 @@ nodes:
     type: tool
     tool: kb.search
     args:
-      query: {{event.text}}
+      query: "{{event.text}}"
       kb: support-kb
       top_k: 3
     next: end

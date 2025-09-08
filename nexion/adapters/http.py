@@ -356,10 +356,18 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
             }}
             .message {{
                 margin: 10px 0; padding: 8px 12px; border-radius: 8px;
-                white-space: pre-wrap; word-wrap: break-word;
+                white-space: normal; word-wrap: break-word;
             }}
             .user {{ background: #007bff; color: white; margin-left: 20%; }}
             .bot {{ background: #e9ecef; color: #333; margin-right: 20%; }}
+            /* Markdown content styling */
+            .bot h1, .bot h2, .bot h3 {{ margin: 0.4em 0 0.3em; }}
+            .bot p {{ margin: 0.4em 0; }}
+            .bot ul, .bot ol {{ margin: 0.4em 1.2em; }}
+            .bot code {{ background: #f1f3f5; padding: 2px 4px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; }}
+            .bot pre {{ background: #0d1117; color: #e6edf3; padding: 12px; border-radius: 8px; overflow-x: auto; }}
+            .bot pre code {{ background: transparent; padding: 0; }}
+            .bot blockquote {{ border-left: 4px solid #ced4da; margin: 0.6em 0; padding: 0.2em 0.8em; color: #495057; background: #f8f9fa; }}
             .input-group {{ display: flex; gap: 10px; }}
             input {{
                 flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px;
@@ -412,6 +420,9 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
             </div>
         </div>
 
+        <!-- Lightweight markdown + sanitizer (CDN) -->
+        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
         <script>
             const messages = document.getElementById('messages');
             const messageInput = document.getElementById('messageInput');
@@ -422,10 +433,35 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
             localStorage.setItem('nexion_user_id', userId);
             document.getElementById('userId').value = userId;
 
+            function renderMarkdown(mdText) {{
+                try {{
+                    if (window.marked && window.DOMPurify) {{
+                        // Configure marked for GitHub-flavored markdown
+                        if (marked && marked.setOptions) {{
+                            marked.setOptions({{ gfm: true, breaks: true }})
+                        }}
+                        const raw = marked.parse(String(mdText || ''));
+                        return DOMPurify.sanitize(raw);
+                    }}
+                }} catch (e) {{
+                    console.warn('Markdown render fallback:', e);
+                }}
+                // Fallback to plain text if libs unavailable
+                return String(mdText || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/\\n/g, '<br>');
+            }}
+
             function addMessage(text, isUser = false) {{
                 const div = document.createElement('div');
                 div.className = `message ${{isUser ? 'user' : 'bot'}}`;
-                div.textContent = text;
+                if (isUser) {{
+                    div.textContent = text;
+                }} else {{
+                    div.innerHTML = renderMarkdown(text);
+                }}
                 messages.appendChild(div);
                 messages.scrollTop = messages.scrollHeight;
             }}
@@ -581,6 +617,11 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
                 sendBtn.textContent = 'Send';
                 messageInput.focus();
             }}
+
+            // Expose functions to global scope for inline handlers
+            window.handleEnter = handleEnter;
+            window.sendMessage = sendMessage;
+            window.newChat = newChat;
 
             // Load conversation history when page loads
             document.addEventListener('DOMContentLoaded', function() {{

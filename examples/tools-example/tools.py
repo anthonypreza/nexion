@@ -28,18 +28,14 @@ def get_weather(city: str, units: str = "celsius") -> dict:
     }
 
 
-@tool(name="calculate", description="Perform basic mathematical calculations")
-def calculate(expression: str) -> dict:
-    """Calculate a mathematical expression.
+@tool(name="add", description="Add two integers and return the sum")
+def add(a: int, b: int) -> dict:
+    """Add two integers.
 
-    expression: A mathematical expression like "2 + 2" or "10 * 5"
+    a: First integer
+    b: Second integer
     """
-    try:
-        # Simple eval - in production you'd want a safer math parser
-        result = eval(expression)
-        return {"expression": expression, "result": result, "success": True}
-    except Exception as e:
-        return {"expression": expression, "error": str(e), "success": False}
+    return {"a": a, "b": b, "sum": a + b}
 
 
 @tool(name="fetch_joke", description="Fetch a random joke from a public API")
@@ -71,5 +67,5 @@ if __name__ == "__main__":
     print()
     print("Defined tools:")
     print("- weather: Get weather for any city")
-    print("- calculate: Perform mathematical calculations")
+    print("- add: Add two integers")
     print("- fetch_joke: Fetch a random joke from a public API")

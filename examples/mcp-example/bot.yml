@@ -1,0 +1,21 @@
+workspace: mcp-example
+log_level: INFO
+
+providers:
+  anthropic:
+    api_key: env:ANTHROPIC_API_KEY
+    max_tokens: 1024
+
+adapters:
+  http:
+    api_key: env:BOT_HTTP_KEY
+
+bots:
+  - id: filesystem-bot
+    model: anthropic:claude-sonnet-4-20250514
+    system_prompt: prompts/system.md
+    channels:
+      - http:/api/chat
+    tools:
+      - mcp__filesystem__read_file
+      - mcp__github__get_file_contents

@@ -15,6 +15,7 @@ Nexion lets you build AI-powered bots using simple YAML configuration and deploy
 - **🔧 CLI Tools**: Bootstrap projects and run development servers
 - **🎨 Custom System Prompts**: Personalize each bot's personality and behavior
 - **🔄 Pre-commit Hooks**: Automated code formatting with Ruff
+- **🔗 MCP Integration**: Discover and use MCP servers/tools via `mcp.json`
 
 ## 🚀 Quick Start
 
@@ -296,6 +297,64 @@ The Telegram adapter uses polling mode (no webhooks required):
 - No webhook setup required - perfect for local development
 - Direct message support
 
+## 🧰 Tools
+
+Nexion supports two kinds of tools:
+
+- Regular tools: Python functions decorated with `@tool` that are auto‑discovered from your project (e.g., `tools.py`, `tools/*.py`, `src/tools.py`). Enable them per‑bot in `bot.yml`.
+- MCP tools: Tools discovered from MCP servers defined in `mcp.json`. They are auto‑registered with names like `mcp__<server>__<tool>` and can be enabled per‑bot.
+
+### Regular Tools
+- Define functions with `@tool` and type hints; schemas are generated for LLM function calling.
+- Example enablement:
+  ```yaml
+  bots:
+    - id: assistant
+      tools:
+        - add            # custom local tool
+  ```
+
+### MCP Tools
+- Discovered from MCP servers and registered as `mcp__{server}__{tool}`.
+- Example enablement:
+  ```yaml
+  bots:
+    - id: assistant
+      tools:
+        - mcp__filesystem__read_file
+        - mcp__github__get_file_contents
+  ```
+
+## 🔗 MCP Integration (Model Context Protocol)
+
+Define MCP servers in an `mcp.json` file at the workspace root. Both stdio and HTTP servers are supported.
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+      "env": {}
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${env:GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+Notes:
+- Env substitution supports:
+  - Whole value: `env:VAR`
+  - Inline: `Bearer env:VAR` or `Bearer ${env:VAR}` (applies to headers and URL)
+  - Also applied to `env` values for stdio servers.
+- Some servers return EmbeddedResource items; Nexion automatically calls MCP `read_resource` to fetch and return real content (e.g., GitHub file text).
+
 ## 🛠️ CLI Commands
 
 ### nexctl
@@ -355,6 +414,14 @@ my-bot/
 
 *At least one LLM provider key is required
 
+### Logging & Troubleshooting
+
+- Set global log level via `log_level` in `bot.yml` or `NEXION_LOG_LEVEL` env (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+- MCP diagnostics:
+  - INFO logs: tool discovery, content summaries, fetched resource summaries.
+  - DEBUG logs: text previews of content where applicable.
+- Tool execution is robust: every tool call stores a tool result (success or error) to keep conversation history in order.
+
 ### System Prompts
 
 Create custom bot personalities in `prompts/`:
@@ -396,3 +463,5 @@ Contributions welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guideli
 ---
 
 **Ready to build your AI agent?** Start with `nexctl init my-bot` and you'll be chatting with your custom bot in minutes! 🚀
+
+<!-- Removed duplicate MCP section that was previously appended at the end -->

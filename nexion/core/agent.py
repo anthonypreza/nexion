@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from ..config.settings import BotSettings
+from ..config.yaml import WorkspaceConfig
 from ..core.types import (
     ConversationContext,
     MessageEvent,
@@ -11,13 +12,21 @@ from ..providers.anthropic_ import AnthropicProvider
 from ..providers.openai_ import OpenAIProvider
 from ..storage.base import ConversationStore
 from ..storage.sqlite import SQLiteStore
+from ..tools.base import ToolResult
+from ..tools.mcp import MCPManager
 from ..tools.registry import get_tool_registry
 from ..utils.logging import get_logger
 
 
 class AgentRuntime:
-    def __init__(self, settings: BotSettings, store: ConversationStore | None = None):
+    def __init__(
+        self,
+        settings: BotSettings,
+        store: ConversationStore | None = None,
+        workspace_config: WorkspaceConfig | None = None,
+    ):
         self.settings = settings
+        self.workspace_config = workspace_config
         self.logger = get_logger("agent")
 
         # Initialize conversation store
@@ -45,14 +54,17 @@ class AgentRuntime:
             self.logger.info("🔄 No LLM provider configured, using echo mode")
 
         self.tool_registry = get_tool_registry()
+        self.mcp_manager = MCPManager(self.tool_registry)
         self._discover_project_tools()
-        self._register_bot_tools(settings.tools)
 
     def _register_bot_tools(self, tool_names: list[str]):
         """Register tools specified in bot configuration."""
         # Tools are already registered via the tools.__init__ module
         # This method validates that requested tools are available
         available_tools = self.tool_registry.list_tools()
+
+        self.logger.debug(f"Validating bot tools. Requested: {tool_names}")
+        self.logger.debug(f"Available tools in registry: {available_tools}")
 
         for tool_name in tool_names:
             if tool_name not in available_tools:
@@ -66,6 +78,8 @@ class AgentRuntime:
         ]
         if bot_tools:
             self.logger.info(f"🔧 Bot tools enabled: {bot_tools}")
+        else:
+            self.logger.warning("⚠️ No valid tools were enabled for this bot")
 
     def _discover_project_tools(self):
         """Auto-discover and register tools from the user's project directory."""
@@ -133,8 +147,40 @@ class AgentRuntime:
                 f"🔧 Auto-discovered {registered_count} custom tools from project files"
             )
 
+    async def _discover_mcp_tools(self):
+        """Discover and register MCP tools from mcp.json configuration."""
+        from pathlib import Path
+
+        # Determine MCP config path - either from workspace config or default
+        if self.workspace_config and self.workspace_config.mcp_config:
+            mcp_config_path = Path(self.workspace_config.mcp_config)
+            # If relative path, resolve relative to current working directory
+            if not mcp_config_path.is_absolute():
+                mcp_config_path = Path.cwd() / mcp_config_path
+        else:
+            # Default: look for mcp.json in current working directory
+            mcp_config_path = Path.cwd() / "mcp.json"
+
+        self.logger.debug(f"Looking for MCP configuration at: {mcp_config_path}")
+
+        if not mcp_config_path.exists():
+            self.logger.debug(
+                "No MCP configuration file found, skipping MCP tool discovery"
+            )
+            return
+
+        try:
+            await self.mcp_manager.initialize_mcp_tools(mcp_config_path)
+        except Exception as e:
+            self.logger.error(f"Failed to initialize MCP tools: {e}")
+            # Don't fail agent initialization if MCP tools fail
+
     async def _handle_conversation_with_tools(
-        self, messages: list[ProviderMessage], tool_schemas: list, conversation_id: str
+        self,
+        messages: list[ProviderMessage],
+        tool_schemas: list,
+        conversation_id: str,
+        enabled_tools: list[str],
     ) -> str:
         """Handle multi-turn conversation with tool calling."""
         import json
@@ -145,6 +191,38 @@ class AgentRuntime:
                 return s if len(s) <= n else s[: n - 3] + "..."
             except Exception:
                 return str(text)
+
+        def _result_json_obj(res: ToolResult) -> dict:
+            """Return a JSON-serializable dict for a ToolResult, handling Pydantic v1/v2 and non-serializable types."""
+            try:
+                # Prefer JSON string encoders to leverage pydantic's encoder for special types (e.g., AnyUrl)
+                if hasattr(res, "model_dump_json"):
+                    return json.loads(res.model_dump_json())  # pydantic v2
+                if hasattr(res, "json"):
+                    return json.loads(res.json())  # pydantic v1
+                if hasattr(res, "model_dump"):
+                    return res.model_dump(mode="json")  # pydantic v2 (dict)
+                return (
+                    res.__dict__
+                    if hasattr(res, "__dict__")
+                    else {
+                        "success": res.success,
+                        "result": res.result,
+                        "error": res.error,
+                        "metadata": getattr(res, "metadata", {}),
+                    }
+                )
+            except Exception:
+                # Best-effort fallback
+                try:
+                    return res.dict()  # type: ignore[attr-defined]
+                except Exception:
+                    return {
+                        "success": res.success,
+                        "result": str(res.result),
+                        "error": res.error,
+                        "metadata": str(getattr(res, "metadata", {})),
+                    }
 
         max_turns = 5  # Prevent infinite loops
         turn = 0
@@ -240,102 +318,197 @@ class AgentRuntime:
 
             # Execute each tool call and create tool result messages
             for tool_call in response.tool_calls:
-                # Ensure arguments is a mapping; some providers return JSON strings
-                import json as _json
+                try:
+                    # Ensure arguments is a mapping; some providers return JSON strings
+                    import json as _json
 
-                args = tool_call.arguments
-                if isinstance(args, str):
-                    try:
-                        args = _json.loads(args)
-                    except Exception:
+                    args = tool_call.arguments
+                    if isinstance(args, str):
+                        try:
+                            args = _json.loads(args)
+                        except Exception:
+                            args = {}
+                    elif isinstance(args, list):
+                        # Normalize list of {name, value} items to a dict
+                        norm = {}
+                        for item in args:
+                            if isinstance(item, dict) and "name" in item:
+                                norm[item["name"]] = item.get("value")
+                        args = norm
+                    elif not isinstance(args, dict):
                         args = {}
-                elif isinstance(args, list):
-                    # Normalize list of {name, value} items to a dict
-                    norm = {}
-                    for item in args:
-                        if isinstance(item, dict) and "name" in item:
-                            norm[item["name"]] = item.get("value")
-                    args = norm
-                elif not isinstance(args, dict):
-                    args = {}
 
-                self.logger.info(
-                    f"🔧 Executing tool '{tool_call.name}' with args={_trunc(args)}"
-                )
-                result = await self.tool_registry.execute_tool(
-                    tool_call.name, **(args or {})
-                )
-                if result.success:
-                    self.logger.info(
-                        f"✅ Tool '{tool_call.name}' success: {_trunc(result.result)}"
-                    )
-                else:
-                    self.logger.warning(
-                        f"⚠️ Tool '{tool_call.name}' failed: {result.error}"
-                    )
+                    # Validate tool is configured for this bot
+                    if tool_call.name not in enabled_tools:
+                        self.logger.warning(
+                            f"⚠️ Tool '{tool_call.name}' not configured for bot, skipping execution"
+                        )
+                        result = ToolResult(
+                            success=False,
+                            error=f"Tool '{tool_call.name}' is not configured for this bot. Available tools: {enabled_tools}",
+                        )
+                    else:
+                        self.logger.info(
+                            f"🔧 Executing tool '{tool_call.name}' with args={_trunc(args)}"
+                        )
+                        try:
+                            result = await self.tool_registry.execute_tool(
+                                tool_call.name, **(args or {})
+                            )
+                        except Exception as ex:
+                            self.logger.exception(
+                                f"Tool '{tool_call.name}' raised an exception during execution: {ex}"
+                            )
+                            result = ToolResult(
+                                success=False,
+                                error=f"Tool execution error: {type(ex).__name__}: {ex}",
+                            )
 
-                # Create tool result message based on provider type
-                if isinstance(self.provider, OpenAIProvider):  # OpenAI format
-                    # Do not use role=tool; OpenAI Responses API doesn't accept it in history input
-                    tool_result_message = ProviderMessage(
-                        role="user",
-                        content=f"Tool {tool_call.name} result: {json.dumps(result.dict())}",
-                        tool_call_id=tool_call.id,
-                    )
-                elif isinstance(self.provider, AnthropicProvider):  # Anthropic format
-                    tool_result_message = ProviderMessage(
-                        role="user",
-                        content=[
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": tool_call.id,
-                                "content": json.dumps(result.dict()),
-                            }
-                        ],
-                    )
-                else:
-                    # Fallback for other providers
-                    tool_result_message = ProviderMessage(
-                        role="user",
-                        content=f"Tool {tool_call.name} result: {json.dumps(result.dict())}",
-                    )
+                    if result.success:
+                        self.logger.info(
+                            f"✅ Tool '{tool_call.name}' success: {_trunc(result.result)}"
+                        )
+                        # Additional logging to inspect full tool results
+                        try:
+                            self.logger.info(
+                                f"Tool '{tool_call.name}' metadata: {result.metadata}"
+                            )
+                            self.logger.debug(
+                                f"Tool '{tool_call.name}' full result object: {{'success': {result.success}, 'result_type': {type(result.result).__name__}, 'result': {_trunc(result.result, 1000)}, 'error': {result.error}, 'metadata': {result.metadata}}}"
+                            )
+                        except Exception:
+                            pass
+                    else:
+                        self.logger.warning(
+                            f"⚠️ Tool '{tool_call.name}' failed: {result.error}"
+                        )
 
-                messages.append(tool_result_message)
+                    # Create tool result message based on provider type
+                    try:
+                        if isinstance(self.provider, OpenAIProvider):  # OpenAI format
+                            # Do not use role=tool; OpenAI Responses API doesn't accept it in history input
+                            tool_result_message = ProviderMessage(
+                                role="user",
+                                content=f"Tool {tool_call.name} result: {json.dumps(_result_json_obj(result))}",
+                                tool_call_id=tool_call.id,
+                            )
+                        elif isinstance(
+                            self.provider, AnthropicProvider
+                        ):  # Anthropic format
+                            tool_result_message = ProviderMessage(
+                                role="user",
+                                content=[
+                                    {
+                                        "type": "tool_result",
+                                        "tool_use_id": tool_call.id,
+                                        "content": json.dumps(_result_json_obj(result)),
+                                    }
+                                ],
+                            )
+                        else:
+                            # Fallback for other providers
+                            tool_result_message = ProviderMessage(
+                                role="user",
+                                content=f"Tool {tool_call.name} result: {json.dumps(_result_json_obj(result))}",
+                            )
+                    except Exception as build_ex:
+                        self.logger.exception(
+                            f"Failed to build tool result message for '{tool_call.name}': {build_ex}"
+                        )
+                        # Fallback minimal message
+                        tool_result_message = ProviderMessage(
+                            role="user",
+                            content=f"Tool {tool_call.name} result: {result.error or '(no result)'}",
+                        )
 
-                # Store tool result in conversation
-                if isinstance(self.provider, AnthropicProvider):
-                    # Store the structured tool_result block for Anthropic
-                    stored_content = json.dumps(
-                        [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": tool_call.id,
-                                "content": json.dumps(result.dict()),
-                            }
-                        ]
+                    # Append tool result message to the conversation context for the next turn
+                    try:
+                        messages.append(tool_result_message)
+                    except Exception:
+                        # As a last resort, append a minimal text message
+                        messages.append(
+                            ProviderMessage(
+                                role="user", content=str(tool_result_message.content)
+                            )
+                        )
+
+                    # Store tool result in conversation
+                    try:
+                        if isinstance(self.provider, AnthropicProvider):
+                            # Store the structured tool_result block for Anthropic
+                            stored_content = json.dumps(
+                                [
+                                    {
+                                        "type": "tool_result",
+                                        "tool_use_id": tool_call.id,
+                                        "content": json.dumps(_result_json_obj(result)),
+                                    }
+                                ]
+                            )
+                            await self.store.add_message(
+                                conversation_id=conversation_id,
+                                role="user",
+                                content=stored_content,
+                                metadata={
+                                    "tool_call_id": tool_call.id,
+                                    "tool_name": tool_call.name,
+                                    "is_tool_result": True,
+                                },
+                            )
+                        else:
+                            # Store tool results as user messages to avoid unsupported 'tool' role
+                            await self.store.add_message(
+                                conversation_id=conversation_id,
+                                role="user",
+                                content=json.dumps(_result_json_obj(result)),
+                                metadata={
+                                    "tool_call_id": tool_call.id,
+                                    "tool_name": tool_call.name,
+                                    "is_tool_result": True,
+                                },
+                            )
+                    except Exception as store_ex:
+                        self.logger.exception(
+                            f"Failed to store tool result for '{tool_call.name}': {store_ex}"
+                        )
+                        # Continue; do not fail the request
+                except Exception as loop_ex:
+                    # Catch-all to ensure one tool's failure doesn't break the entire turn
+                    self.logger.exception(
+                        f"Unexpected error handling tool call '{tool_call.name}': {loop_ex}"
                     )
-                    await self.store.add_message(
-                        conversation_id=conversation_id,
-                        role="user",
-                        content=stored_content,
-                        metadata={
-                            "tool_call_id": tool_call.id,
-                            "tool_name": tool_call.name,
-                            "is_tool_result": True,
-                        },
+                    # Attempt to append and store a minimal error result
+                    fallback_result = ToolResult(
+                        success=False,
+                        error=f"Tool handling error: {type(loop_ex).__name__}: {loop_ex}",
                     )
-                else:
-                    # Store tool results as user messages to avoid unsupported 'tool' role
-                    await self.store.add_message(
-                        conversation_id=conversation_id,
-                        role="user",
-                        content=json.dumps(result.dict()),
-                        metadata={
-                            "tool_call_id": tool_call.id,
-                            "tool_name": tool_call.name,
-                            "is_tool_result": True,
-                        },
-                    )
+                    try:
+                        messages.append(
+                            ProviderMessage(
+                                role="user",
+                                content=f"Tool {tool_call.name} result: {json.dumps(_result_json_obj(fallback_result))}",
+                            )
+                        )
+                    except Exception:
+                        messages.append(
+                            ProviderMessage(
+                                role="user",
+                                content=f"Tool {tool_call.name} result: {fallback_result.error}",
+                            )
+                        )
+                    try:
+                        await self.store.add_message(
+                            conversation_id=conversation_id,
+                            role="user",
+                            content=json.dumps(_result_json_obj(fallback_result)),
+                            metadata={
+                                "tool_call_id": tool_call.id,
+                                "tool_name": tool_call.name,
+                                "is_tool_result": True,
+                            },
+                        )
+                    except Exception:
+                        pass
 
         # If we hit max turns, return the last response
         return (
@@ -345,6 +518,20 @@ class AgentRuntime:
     async def initialize(self) -> None:
         """Initialize the agent runtime and storage."""
         await self.store.initialize()
+
+        # Log tool registry state before MCP discovery
+        current_tools = self.tool_registry.list_tools()
+        self.logger.debug(f"Tools in registry before MCP discovery: {current_tools}")
+
+        await self._discover_mcp_tools()
+
+        # Log tool registry state after MCP discovery
+        final_tools = self.tool_registry.list_tools()
+        self.logger.debug(f"Tools in registry after MCP discovery: {final_tools}")
+
+        # Now validate and register bot tools after MCP discovery
+        self._register_bot_tools(self.settings.tools)
+
         self.logger.info("🚀 Agent runtime initialized with conversation storage")
 
     async def handle(self, event: MessageEvent) -> Reply:
@@ -370,8 +557,16 @@ class AgentRuntime:
         if not self.provider:
             reply_text = f"(echo) {event.text}"
         else:
-            # Get available tool schemas for this bot
-            tool_schemas = self.tool_registry.get_tool_schemas(self.settings.tools)
+            # Get available tool schemas for this bot (only configured tools)
+            available_tools = self.tool_registry.list_tools()
+            enabled_tools = [
+                tool for tool in self.settings.tools if tool in available_tools
+            ]
+            tool_schemas = (
+                self.tool_registry.get_tool_schemas(enabled_tools)
+                if enabled_tools
+                else []
+            )
 
             # Get conversation history
             history = await self.store.get_conversation_history(
@@ -435,7 +630,7 @@ class AgentRuntime:
 
             # Multi-turn tool calling loop
             reply_text = await self._handle_conversation_with_tools(
-                messages, tool_schemas, conversation.id
+                messages, tool_schemas, conversation.id, enabled_tools
             )
 
         # Store assistant response
@@ -468,3 +663,8 @@ class AgentRuntime:
             state=conversation.state,
             history=provider_messages,
         )
+
+    async def cleanup(self) -> None:
+        """Clean up resources including MCP connections."""
+        await self.mcp_manager.shutdown()
+        self.logger.info("🔄 Agent runtime cleanup complete")

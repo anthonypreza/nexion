@@ -86,7 +86,7 @@ class AnthropicProvider(Provider):
             f"Anthropic request (tools): messages={len(messages)} tools={len(tools) if tools else 0}"
         )
 
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=60) as client:
             res = await client.post(url, headers=self._get_headers(), json=payload)
             if res.is_error:
                 # Provide detailed error body for easier diagnosis (e.g., schema issues)

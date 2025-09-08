@@ -64,6 +64,14 @@ Nexion is an AI agent framework for building multi-channel bots via YAML configu
 - Each adapter handles channel-specific message formatting and delivery
 - HTTP adapter creates individual UIs for each bot with cross-navigation
 
+**MCP (Model Context Protocol):**
+- `nexion/tools/mcp.py` implements MCP discovery and execution for stdio and HTTP servers.
+- Configure servers in `mcp.json` at workspace root; env substitution supports `env:VAR`, `${env:VAR}`, and inline `env:VAR` inside strings.
+- HTTP MCP: headers and URL support env substitution; stdio MCP: `env` values support `env:`.
+- Tools are exposed as `mcp__<server>__<tool>` and enabled in a bot's `tools:` list.
+- EmbeddedResource items returned by servers are fetched via `read_resource` so tools return real content (e.g., GitHub file text).
+- Comprehensive logging: discovery, tool content summaries, and fetched resource summaries (INFO); previews at DEBUG.
+
 **LLM Providers:**
 - `nexion/providers/openai_.py` - OpenAI integration (Responses API)
 - `nexion/providers/anthropic_.py` - Anthropic integration (Claude models)
@@ -102,7 +110,8 @@ Bot behavior is defined in `bot.yml` with these key sections:
 3. Agent Runtime loads conversation history and system prompt
 4. LLM provider processes message with full context
 5. Response stored in conversation history
-6. Reply sent back through appropriate channel adapter
+6. If the model proposes tool calls, the agent executes them sequentially and always stores a corresponding tool result (success or error) to keep history consistent
+7. Reply sent back through appropriate channel adapter
 
 **Message Flow (Target):**
 1. Channel adapter receives message → normalized `MessageEvent`
@@ -146,6 +155,7 @@ Bot behavior is defined in `bot.yml` with these key sections:
 - Typer for CLI interface
 - Pydantic for data validation
 - YAML configuration with environment variable substitution
+ - MCP (`mcp` Python package) for Model Context Protocol client support
 
 ## Implementation Notes
 
@@ -155,3 +165,4 @@ When working with this codebase:
 - New features should align with the target architecture (tools, flows, KB, MCP)
 - Consider the planned database schema when adding persistence features
 - CLI commands should follow the `nexctl` pattern documented in the system design
+ - For MCP, avoid logging secrets (redact headers) and ensure tool results are serialized using Pydantic encoders (v1/v2 compatible).

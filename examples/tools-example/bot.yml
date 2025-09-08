@@ -22,7 +22,7 @@ bots:
       - http:/api/chat
     tools:
       - weather         # Custom weather tool
-      - calculate       # Custom calculator tool
+      - add             # Safe add tool (two integers)
   - id: telegram-tools-bot
     model: openai:o4-mini
     system_prompt: prompts/system.md
@@ -30,4 +30,4 @@ bots:
       - telegram:@mybot
     tools:
       - fetch_joke      # Example API fetch tool
-      - calculate       # Re-use tools across channels
+      - add             # Re-use tools across channels
