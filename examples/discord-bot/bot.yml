@@ -1,0 +1,17 @@
+workspace: discord-bot
+
+providers:
+  openai:
+    api_key: env:OPENAI_API_KEY
+    max_tokens: 1024
+
+adapters:
+  discord:
+    bot_token: env:DISCORD_BOT_TOKEN
+
+bots:
+  - id: discord-bot
+    model: openai:gpt-4o-mini
+    system_prompt: prompts/system.md
+    channels:
+      - discord:@youtopia-bot-test

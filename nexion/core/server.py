@@ -4,6 +4,7 @@ from pathlib import Path
 import uvicorn
 from fastapi import FastAPI
 
+from ..adapters.discord import start_discord_websockets, stop_discord_websockets
 from ..adapters.http import register_dynamic_routes
 from ..adapters.http import router as http_router
 from ..adapters.telegram import start_telegram_polling, stop_telegram_polling
@@ -31,7 +32,6 @@ async def lifespan(app: FastAPI):
     config_path = Path(config_path_str) if config_path_str else None
 
     # Peek at YAML for optional log_level before initializing logging
-    level = None
     try:
         cfg = ConfigLoader(config_path).load()
         level = cfg.log_level
@@ -99,21 +99,27 @@ async def lifespan(app: FastAPI):
     # Start telegram polling
     await start_telegram_polling(bot_manager)
 
+    # Start discord websockets
+    await start_discord_websockets(bot_manager)
+
     # Get the port from environment variable set by run()
     import os
 
     port = os.environ.get("NEXION_SERVER_PORT", "8080")
 
     logger.info("✅ All services started successfully")
-    logger.info(
-        f"🌐 Visit http://localhost:{port}/ to interact with your bot via web UI"
-    )
+
+    if bot_manager.http_routes:
+        logger.info(
+            f"🌐 Visit http://localhost:{port}/ to interact with your bot via web UI"
+        )
 
     yield
 
     # Shutdown
     logger.info("🛑 Shutting down Nexion server...")
     await stop_telegram_polling()
+    await stop_discord_websockets()
     logger.info("✅ Server shutdown complete")
 
 

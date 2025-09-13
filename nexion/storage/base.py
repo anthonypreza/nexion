@@ -19,7 +19,7 @@ class ConversationStore(ABC):
         workspace_id: str,
         bot_id: str,
         channel_ref: str,
-        user_ref: str,
+        chat_ref: str,
         thread_id: str | None = None,
     ) -> Conversation:
         """Get existing conversation or create a new one."""
@@ -75,11 +75,11 @@ class ConversationStore(ABC):
         workspace_id: str,
         bot_id: str,
         channel_ref: str,
-        user_ref: str,
+        chat_ref: str,
         thread_id: str | None = None,
     ) -> str:
         """Create a deterministic key for conversation lookup."""
-        parts = [workspace_id, bot_id, channel_ref, user_ref]
+        parts = [workspace_id, bot_id, channel_ref, chat_ref]
         if thread_id:
             parts.append(thread_id)
         return ":".join(parts)

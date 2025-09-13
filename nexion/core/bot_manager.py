@@ -16,6 +16,7 @@ class BotManager:
         self.bots: dict[str, AgentRuntime] = {}
         self.http_routes: dict[str, str] = {}
         self.telegram_bots: dict[str, str] = {}
+        self.discord_bots: dict[str, str] = {}
         self.logger = get_logger("bot_manager")
 
     def _create_settings_for_bot(self, bot_config: BotConfig) -> BotSettings:
@@ -96,6 +97,14 @@ class BotManager:
                     if telegram_adapter.bot_token
                     else {}
                 )
+        elif channel.startswith("discord:"):
+            if "discord" in self.workspace_config.adapters:
+                discord_adapter = self.workspace_config.adapters["discord"]
+                return (
+                    {"bot_token": discord_adapter.bot_token}
+                    if discord_adapter.bot_token
+                    else {}
+                )
         return {}
 
     async def initialize(self) -> None:
@@ -147,6 +156,9 @@ class BotManager:
         elif channel.startswith("telegram:"):
             username = channel[9:]
             self.telegram_bots[username] = bot_id
+        elif channel.startswith("discord:"):
+            username = channel[8:]
+            self.discord_bots[username] = bot_id
 
     def get_bot_for_http_path(self, path: str) -> AgentRuntime | None:
         bot_id = self.http_routes.get(path)
@@ -159,6 +171,11 @@ class BotManager:
     def get_bot_for_telegram(self, bot_username: str) -> AgentRuntime | None:
         """Get bot for Telegram username like '@supportbot'."""
         bot_id = self.telegram_bots.get(bot_username)
+        return self.bots.get(bot_id) if bot_id else None
+
+    def get_bot_for_discord(self, bot_username: str) -> AgentRuntime | None:
+        """Get bot for Discord username like '@supportbot'."""
+        bot_id = self.discord_bots.get(bot_username)
         return self.bots.get(bot_id) if bot_id else None
 
     def list_bots(self) -> list[str]:

@@ -41,7 +41,3 @@ class BotSettings(BaseSettings):
         # Allow environment variable overrides
         env_file = None  # We handle .env loading manually
         case_sensitive = False
-
-
-# Legacy alias for backwards compatibility during transition
-Settings = BotSettings

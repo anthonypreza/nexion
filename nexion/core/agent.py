@@ -542,7 +542,7 @@ class AgentRuntime:
             workspace_id=event.workspace_id,
             bot_id=event.bot_id,
             channel_ref=event.channel.value,
-            user_ref=event.user_id,
+            chat_ref=event.chat_id or event.user_id,  # Use chat_id, fallback to user_id
             thread_id=event.thread_id,
         )
 
@@ -658,7 +658,7 @@ class AgentRuntime:
             workspace_id=conversation.workspace_id,
             bot_id=conversation.bot_id,
             channel_ref=conversation.channel_ref,
-            user_ref=conversation.user_ref,
+            chat_ref=conversation.chat_ref,
             thread_id=conversation.thread_id,
             state=conversation.state,
             history=provider_messages,

@@ -90,6 +90,7 @@ def create_chat_handler(path: str):
             bot_id=payload.bot_id,
             workspace_id=bot_manager.get_workspace_id(),
             thread_id=payload.thread_id,
+            chat_id=payload.user_id,  # For HTTP, chat_id is the same as user_id
         )
         res = await runtime.handle(event)
 

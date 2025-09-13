@@ -12,7 +12,7 @@ class Conversation(SQLModel, table=True):
     workspace_id: str = Field(index=True)
     bot_id: str = Field(index=True)
     channel_ref: str = Field(index=True)
-    user_ref: str = Field(index=True)
+    chat_ref: str = Field(index=True)  # Chat/channel ID where conversation takes place
     thread_id: str | None = Field(default=None, index=True)
     state_json: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)

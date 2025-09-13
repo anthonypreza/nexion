@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from ..utils.logging import get_logger
-from .settings import Settings
+from .settings import BotSettings
 from .yaml import WorkspaceConfig, load_config
 
 logger = get_logger("config_bridge")
@@ -20,9 +20,9 @@ class ConfigBridge:
             logger.info(f"Loaded .env file from {env_file}")
 
         self.yaml_config = load_config(config_path)
-        self._settings_cache: Settings | None = None
+        self._settings_cache: BotSettings | None = None
 
-    def get_settings(self) -> Settings:
+    def get_settings(self) -> BotSettings:
         """Convert YAML configuration to Settings object."""
         if self._settings_cache is not None:
             return self._settings_cache
@@ -58,7 +58,7 @@ class ConfigBridge:
             if first_bot.system_prompt:
                 system_prompt_path = first_bot.system_prompt
 
-        self._settings_cache = Settings(
+        self._settings_cache = BotSettings(
             OPENAI_API_KEY=openai_api_key,
             ANTHROPIC_API_KEY=anthropic_api_key,
             MODEL=model,
@@ -90,7 +90,7 @@ def get_config_bridge(config_path: Path | None = None) -> ConfigBridge:
     return _config_bridge
 
 
-def get_settings_from_yaml(config_path: Path | None = None) -> Settings:
+def get_settings_from_yaml(config_path: Path | None = None) -> BotSettings:
     """Convenience function to get settings from a YAML file."""
     bridge = get_config_bridge(config_path)
     return bridge.get_settings()
