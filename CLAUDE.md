@@ -61,8 +61,10 @@ Nexion is an AI agent framework for building multi-channel bots via YAML configu
 **Adapters (Channel Interfaces):**
 - `nexion/adapters/http.py` - Dynamic HTTP REST APIs and multi-bot web UIs with navigation
 - `nexion/adapters/telegram.py` - Telegram bot polling integration
+- `nexion/adapters/discord.py` - Discord WebSocket integration with resume/reconnect support
 - Each adapter handles channel-specific message formatting and delivery
 - HTTP adapter creates individual UIs for each bot with cross-navigation
+- Discord adapter implements full Gateway protocol with session management and automatic reconnection
 
 **MCP (Model Context Protocol):**
 - `nexion/tools/mcp.py` implements MCP discovery and execution for stdio and HTTP servers.
@@ -84,6 +86,7 @@ Nexion is an AI agent framework for building multi-channel bots via YAML configu
 - `nexion/storage/models.py` - SQLModel data models for conversations and messages
 - `nexion/storage/base.py` - Abstract base classes for storage interfaces
 - Automatic database schema initialization and conversation tracking
+- **Chat-centric conversations**: Conversations are keyed by chat/channel ID for persistent context
 
 ### Planned Architecture (Full System Design)
 

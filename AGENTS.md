@@ -2,14 +2,14 @@
 
 ## Project Structure & Module Organization
 - `nexion/` — core source code
-  - `adapters/` (HTTP, Telegram), `core/` (agent runtime, server), `providers/` (OpenAI, Anthropic),
-    `tools/` (registry, decorators), `storage/` (SQLite + models), `config/` (YAML/.env bridge), `utils/` (logging).
-- `examples/` — runnable sample bots (see `examples/tools_example`).
+  - `adapters/` (HTTP, Telegram, Discord), `core/` (agent runtime, server), `providers/` (OpenAI, Anthropic),
+    `tools/` (registry, decorators, MCP integration), `storage/` (SQLite + models), `config/` (YAML/.env bridge), `utils/` (logging).
+- `examples/` — runnable sample bots (see `examples/discord-bot`, `examples/telegram-bot`).
 - Root docs: `README.md`, `CLAUDE.md`, `AGENTS.md` (this file).
 
 ## Build, Test, and Development Commands
 - Install deps: `uv sync` (add `--group dev` for contributor tooling).
-- Run dev server: `nexctl dev` (launches HTTP UI and Telegram polling if configured).
+- Run dev server: `nexctl dev` (launches HTTP UI, Telegram polling, and Discord WebSocket if configured).
 - Code style (pre-commit): `pre-commit install && pre-commit run -a`.
 - Packaging/venv is managed by `uv`; Python 3.10+ recommended.
 
@@ -62,4 +62,7 @@
 ## Architecture Overview (Brief)
 - Provider chosen by `model` prefix (`openai:`/`anthropic:`).
 - OpenAI uses the Responses API; Anthropic uses Messages API with tool_use/tool_result.
-- Conversations persisted in SQLite; agent reconstructs provider-specific message shapes.
+- Chat-centric conversations persisted in SQLite; conversations keyed by chat/channel ID for persistent context.
+- Discord adapter: Full WebSocket integration with resume/reconnect, bot filtering, and session management.
+- Telegram adapter: Polling-based with no webhook requirements.
+- HTTP adapter: Dynamic REST APIs and multi-bot web interfaces.

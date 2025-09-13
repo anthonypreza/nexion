@@ -6,6 +6,7 @@ from typing import Any
 class Channel(str, Enum):
     HTTP = "http"
     TELEGRAM = "telegram"
+    DISCORD = "discord"
 
 
 @dataclass
@@ -16,6 +17,7 @@ class MessageEvent:
     bot_id: str
     workspace_id: str = "default"
     thread_id: str | None = None
+    chat_id: str | None = None
     metadata: dict[str, Any] | None = None
 
 
@@ -49,7 +51,7 @@ class ConversationContext:
     workspace_id: str
     bot_id: str
     channel_ref: str
-    user_ref: str
+    chat_ref: str  # Chat ID where conversation takes place
     thread_id: str | None = None
     state: dict[str, Any] | None = None
     history: list[ProviderMessage] | None = None

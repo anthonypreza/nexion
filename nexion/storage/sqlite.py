@@ -38,7 +38,7 @@ class SQLiteStore(ConversationStore):
         workspace_id: str,
         bot_id: str,
         channel_ref: str,
-        user_ref: str,
+        chat_ref: str,
         thread_id: str | None = None,
     ) -> Conversation:
         """Get existing conversation or create a new one."""
@@ -49,7 +49,7 @@ class SQLiteStore(ConversationStore):
                 Conversation.workspace_id == workspace_id,
                 Conversation.bot_id == bot_id,
                 Conversation.channel_ref == channel_ref,
-                Conversation.user_ref == user_ref,
+                Conversation.chat_ref == chat_ref,
                 Conversation.thread_id == thread_id,
             )
 
@@ -69,7 +69,7 @@ class SQLiteStore(ConversationStore):
                 workspace_id=workspace_id,
                 bot_id=bot_id,
                 channel_ref=channel_ref,
-                user_ref=user_ref,
+                chat_ref=chat_ref,
                 thread_id=thread_id,
             )
 

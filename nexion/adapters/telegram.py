@@ -1,17 +1,18 @@
 import asyncio
+from typing import ClassVar
 
 import httpx
-from fastapi import APIRouter
 
 from ..core.bot_manager import BotManager
 from ..core.types import Channel, MessageEvent
 from ..utils.logging import get_logger
 
-router = APIRouter()
 logger = get_logger("telegram")
 
 
 class TelegramPollingService:
+    API_BASE_URL: ClassVar[str] = "https://api.telegram.org"
+
     def __init__(self, bot_token: str, bot_manager: BotManager, bot_username: str):
         self.bot_token = bot_token
         self.bot_manager = bot_manager
@@ -20,10 +21,16 @@ class TelegramPollingService:
         self.running = False
         self.task: asyncio.Task | None = None
 
+        # Reusable HTTP client for API requests
+        self.http_client: httpx.AsyncClient | None = None
+
     async def start(self):
         """Start the polling service"""
         if self.running:
             return
+
+        # Initialize HTTP client
+        self.http_client = httpx.AsyncClient(timeout=30)
 
         self.running = True
         self.task = asyncio.create_task(self._poll_loop())
@@ -38,6 +45,12 @@ class TelegramPollingService:
                 await self.task
             except asyncio.CancelledError:
                 pass
+
+        # Clean up HTTP client
+        if self.http_client:
+            await self.http_client.aclose()
+            self.http_client = None
+
         logger.info(f"Telegram polling service stopped for bot {self.bot_username}")
 
     async def _poll_loop(self):
@@ -52,26 +65,29 @@ class TelegramPollingService:
 
     async def _get_updates(self):
         """Fetch updates from Telegram"""
-        async with httpx.AsyncClient(timeout=30) as client:
-            url = f"https://api.telegram.org/bot{self.bot_token}/getUpdates"
-            params = {
-                "offset": self.last_update_id + 1,
-                "timeout": 10,  # Long polling timeout
-                "allowed_updates": ["message"],
-            }
+        if not self.http_client:
+            logger.error("HTTP client not initialized")
+            return
 
-            response = await client.get(url, params=params)
-            response.raise_for_status()
-            data = response.json()
+        url = f"{TelegramPollingService.API_BASE_URL}/bot{self.bot_token}/getUpdates"
+        params = {
+            "offset": self.last_update_id + 1,
+            "timeout": 10,  # Long polling timeout
+            "allowed_updates": ["message"],
+        }
 
-            if not data.get("ok"):
-                logger.error(f"Telegram API error: {data}")
-                return
+        response = await self.http_client.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
 
-            updates = data.get("result", [])
-            for update in updates:
-                await self._process_update(update)
-                self.last_update_id = max(self.last_update_id, update["update_id"])
+        if not data.get("ok"):
+            logger.error(f"Telegram API error: {data}")
+            return
+
+        updates = data.get("result", [])
+        for update in updates:
+            await self._process_update(update)
+            self.last_update_id = max(self.last_update_id, update["update_id"])
 
     async def _process_update(self, update: dict):
         """Process a single update from Telegram"""
@@ -97,10 +113,11 @@ class TelegramPollingService:
 
         event = MessageEvent(
             channel=Channel.TELEGRAM,
-            user_id=str(chat_id),
+            user_id=str(user_id),
             text=text,
             bot_id=self.bot_manager.telegram_bots.get(self.bot_username, "default"),
             workspace_id=self.bot_manager.get_workspace_id(),
+            chat_id=str(chat_id),
             metadata={"telegram_user_id": user_id, "telegram_chat_id": chat_id},
         )
 
@@ -110,7 +127,7 @@ class TelegramPollingService:
 
         try:
             reply = await runtime.handle(event)
-            await self._send_message(chat_id, reply.text)
+            await self._send_message(int(event.chat_id), reply.text)
             logger.info(
                 f"Sent Telegram reply to user {user_id}: {reply.text[:50]}{'...' if len(reply.text) > 50 else ''}"
             )
@@ -119,9 +136,12 @@ class TelegramPollingService:
 
     async def _send_message(self, chat_id: int, text: str):
         """Send a message to Telegram"""
-        async with httpx.AsyncClient(timeout=10) as client:
-            url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-            await client.post(url, json={"chat_id": chat_id, "text": text})
+        if not self.http_client:
+            logger.error("HTTP client not initialized")
+            return
+
+        url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+        await self.http_client.post(url, json={"chat_id": chat_id, "text": text})
 
 
 # Global polling service instances

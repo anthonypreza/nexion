@@ -2,15 +2,16 @@
 
 > An open-source AI agent framework for building LLM bots that can be deployed across multiple channels
 
-Nexion lets you build AI-powered bots using simple YAML configuration and deploy them to HTTP endpoints and Telegram. Perfect for creating support bots, documentation assistants, and interactive AI experiences.
+Nexion lets you build AI-powered bots using simple YAML configuration and deploy them to HTTP endpoints, Telegram, and Discord. Perfect for creating support bots, documentation assistants, and interactive AI experiences.
 
 ## ✨ Current Features
 
 - **🤖 Multi-LLM Support**: OpenAI (Responses API) and Anthropic integration with your API keys
 - **🌐 Dynamic HTTP Interfaces**: Multiple bots with individual web UIs and REST APIs
 - **🎯 Multi-Bot Architecture**: Run multiple specialized bots from a single configuration
-- **📱 Telegram Integration**: Connect to Telegram bots via polling (no webhooks needed)
-- **💾 Persistent Conversations**: SQLite-based conversation history and context
+- **📱 Telegram Integration**: Direct message conversations via polling (no webhooks needed)
+- **💬 Discord Integration**: Direct message conversations via WebSocket with resume/reconnect and bot filtering
+- **💾 Persistent Conversations**: SQLite-based conversation history
 - **📝 YAML Configuration**: Simple, declarative bot configuration with environment variable support
 - **🔧 CLI Tools**: Bootstrap projects and run development servers
 - **🎨 Custom System Prompts**: Personalize each bot's personality and behavior
@@ -121,6 +122,9 @@ adapters:
   telegram:
     enabled: boolean              # Enable Telegram adapter (default: true)
     bot_token: string             # Telegram bot token (optional)
+  discord:
+    enabled: boolean              # Enable Discord adapter (default: true)
+    bot_token: string             # Discord bot token (optional)
 
 # Knowledge bases (coming soon)
 kb:
@@ -138,12 +142,14 @@ Channels define where your bot receives and sends messages:
 | HTTP | `http:/api/chat` | HTTP endpoint at `/api/chat` |
 | HTTP | `http:/api/custom` | HTTP endpoint at `/api/custom` |
 | Telegram | `telegram:@mybotname` | Telegram bot username |
+| Discord | `discord:@mybotname` | Discord bot username |
 
 **Examples:**
 ```yaml
 channels:
   - "http:/api/chat"        # HTTP endpoint
   - "telegram:@supportbot"  # Telegram bot
+  - "discord:@mybot"        # Discord bot
 ```
 
 ### Environment Variables
@@ -162,16 +168,36 @@ adapters:
 
 ### Model Options
 
+Nexion supports any model available from the OpenAI or Anthropic APIs. Use the `provider:model-name` format:
+
 **OpenAI Models:**
+Use any OpenAI model with the `openai:` prefix:
 - `openai:gpt-4o-mini` (default)
 - `openai:gpt-4o`
-- `openai:gpt-5-nano` (latest GPT-5 model)
+- `openai:gpt-4-turbo`
 - `openai:gpt-3.5-turbo`
+- `openai:o1-preview`
+- `openai:o1-mini`
+- Any other OpenAI model available via their API
 
 **Anthropic Models:**
-- `anthropic:claude-3-haiku`
-- `anthropic:claude-3-sonnet`
-- `anthropic:claude-3-opus`
+Use any Anthropic model with the `anthropic:` prefix:
+- `anthropic:claude-3-5-haiku-latest`
+- `anthropic:claude-3-5-sonnet-latest`
+- `anthropic:claude-3-opus-latest`
+- `anthropic:claude-3-haiku-20240307`
+- Any other Claude model available via their API
+
+**Examples:**
+```yaml
+bots:
+  - id: my-bot
+    model: openai:gpt-4o-mini     # Default
+  - id: advanced-bot
+    model: anthropic:claude-3-5-sonnet-latest
+  - id: reasoning-bot
+    model: openai:o1-preview
+```
 
 ## 📖 Configuration Examples
 
@@ -224,15 +250,17 @@ bots:
   - id: faq-bot
     channels: ["http:/api/faq/chat"]
     system_prompt: prompts/faq.md
-    model: openai:gpt-5-nano
+    model: openai:gpt-4o-mini
   - id: sales-bot
     channels: ["http:/api/sales/chat"]
     system_prompt: prompts/sales.md
-    model: openai:gpt-4o
+    model: anthropic:claude-3-5-sonnet-latest
 
 providers:
   openai:
     api_key: env:OPENAI_API_KEY
+  anthropic:
+    api_key: env:ANTHROPIC_API_KEY
 
 adapters:
   http:
@@ -284,7 +312,7 @@ curl -X POST http://localhost:8080/api/chat \
 
 ### Telegram Adapter
 
-The Telegram adapter uses polling mode (no webhooks required):
+The Telegram adapter uses polling mode for direct message conversations (no webhooks required):
 
 **Setup:**
 1. Create a bot with @BotFather on Telegram
@@ -295,7 +323,25 @@ The Telegram adapter uses polling mode (no webhooks required):
 **Features:**
 - Automatic polling startup when token is configured
 - No webhook setup required - perfect for local development
-- Direct message support
+- Direct message conversations with users
+
+### Discord Adapter
+
+The Discord adapter uses WebSocket connections for real-time direct message conversations:
+
+**Setup:**
+1. Create a Discord Application at https://discord.com/developers/applications
+2. Create a bot and copy the bot token
+3. Enable "Message Content Intent" in bot settings
+4. Set `DISCORD_BOT_TOKEN` environment variable
+5. Configure channels with `discord:@yourbotname`
+
+**Features:**
+- Real-time WebSocket connection with Discord Gateway
+- Automatic session resume and reconnect functionality
+- Bot message filtering to prevent response loops
+- Direct message conversations with users
+- No server setup required - works entirely through DMs
 
 ## 🧰 Tools
 
@@ -410,6 +456,7 @@ my-bot/
 | `ANTHROPIC_API_KEY` | Yes* | Your Anthropic API key |
 | `BOT_HTTP_KEY` | No | API key for HTTP adapter |
 | `TELEGRAM_BOT_TOKEN` | No | Your Telegram bot token |
+| `DISCORD_BOT_TOKEN` | No | Your Discord bot token |
 | `NEXION_LOG_LEVEL` | No | Global log level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
 
 *At least one LLM provider key is required
