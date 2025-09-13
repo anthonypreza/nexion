@@ -140,7 +140,7 @@ class TelegramPollingService:
             logger.error("HTTP client not initialized")
             return
 
-        url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+        url = f"{TelegramPollingService.API_BASE_URL}/bot{self.bot_token}/sendMessage"
         await self.http_client.post(url, json={"chat_id": chat_id, "text": text})
 
 
