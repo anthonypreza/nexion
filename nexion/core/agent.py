@@ -32,9 +32,13 @@ class AgentRuntime:
         # Initialize conversation store
         self.store = store or SQLiteStore()
 
-        self.system_prompt = Path(settings.system_prompt_path).read_text(
-            encoding="utf-8"
-        )
+        # Use inline system prompt if provided, otherwise load from file
+        if settings.system_prompt:
+            self.system_prompt = settings.system_prompt
+        else:
+            self.system_prompt = Path(settings.system_prompt_path).read_text(
+                encoding="utf-8"
+            )
 
         if settings.openai_api_key and settings.model.startswith("openai"):
             self.provider = OpenAIProvider(
@@ -66,11 +70,29 @@ class AgentRuntime:
         self.logger.debug(f"Validating bot tools. Requested: {tool_names}")
         self.logger.debug(f"Available tools in registry: {available_tools}")
 
-        for tool_name in tool_names:
+        # Separate MCP tools from regular tools for better reporting
+        mcp_tools = [name for name in tool_names if name.startswith("mcp__")]
+        regular_tools = [name for name in tool_names if not name.startswith("mcp__")]
+
+        # Check regular tools
+        for tool_name in regular_tools:
             if tool_name not in available_tools:
                 self.logger.warning(
-                    f"⚠️ Tool '{tool_name}' not found. Available tools: {available_tools}"
+                    f"⚠️ Regular tool '{tool_name}' not found. Available tools: {available_tools}"
                 )
+
+        # Check MCP tools with more context
+        missing_mcp_tools = []
+        for tool_name in mcp_tools:
+            if tool_name not in available_tools:
+                missing_mcp_tools.append(tool_name)
+
+        if missing_mcp_tools:
+            self.logger.warning(
+                f"⚠️ MCP tools not found: {missing_mcp_tools}. "
+                f"Check MCP configuration and server availability. "
+                f"Available MCP tools: {[t for t in available_tools if t.startswith('mcp__')]}"
+            )
 
         # Log registered tools for this bot
         bot_tools = [
@@ -149,19 +171,33 @@ class AgentRuntime:
 
     async def _discover_mcp_tools(self):
         """Discover and register MCP tools from mcp.json configuration."""
+        import os
         from pathlib import Path
 
-        # Determine MCP config path - either from workspace config or default
-        if self.workspace_config and self.workspace_config.mcp_config:
+        # Determine MCP config path - check programmatic setting first
+        programmatic_mcp_path = os.environ.get("NEXION_MCP_CONFIG_PATH")
+
+        if programmatic_mcp_path:
+            mcp_config_path = Path(programmatic_mcp_path)
+            self.logger.debug(
+                f"Using programmatic MCP configuration at: {mcp_config_path}"
+            )
+        elif self.workspace_config and self.workspace_config.mcp_config:
             mcp_config_path = Path(self.workspace_config.mcp_config)
             # If relative path, resolve relative to current working directory
             if not mcp_config_path.is_absolute():
                 mcp_config_path = Path.cwd() / mcp_config_path
+            self.logger.debug(
+                f"Using workspace MCP configuration at: {mcp_config_path}"
+            )
         else:
             # Default: look for mcp.json in current working directory
             mcp_config_path = Path.cwd() / "mcp.json"
+            self.logger.debug(
+                f"Looking for default MCP configuration at: {mcp_config_path}"
+            )
 
-        self.logger.debug(f"Looking for MCP configuration at: {mcp_config_path}")
+        self.logger.debug(f"Final MCP config path: {mcp_config_path}")
 
         if not mcp_config_path.exists():
             self.logger.debug(

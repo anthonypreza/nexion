@@ -13,6 +13,7 @@ Nexion lets you build AI-powered bots using simple YAML configuration and deploy
 - **💬 Discord Integration**: Direct message conversations via WebSocket with resume/reconnect and bot filtering
 - **💾 Persistent Conversations**: SQLite-based conversation history
 - **📝 YAML Configuration**: Simple, declarative bot configuration with environment variable support
+- **🐍 Programmatic SDK**: Create bots entirely in Python code for maximum control and flexibility
 - **🔧 CLI Tools**: Bootstrap projects and run development servers
 - **🎨 Custom System Prompts**: Personalize each bot's personality and behavior
 - **🔄 Pre-commit Hooks**: Automated code formatting with Ruff
@@ -87,6 +88,94 @@ nexctl dev
 ```
 
 Visit **http://localhost:8080** to chat with your bot! 🎉
+
+## 🐍 Programmatic Bot Creation (Maximum Control)
+
+For advanced use cases, you can create bots entirely in Python code without YAML configuration. This approach provides maximum flexibility, type safety, and integration with existing Python applications.
+
+### Why Choose Programmatic Configuration?
+
+- **🎯 Dynamic Configuration**: Create bots based on runtime conditions
+- **🔒 Type Safety**: Full IntelliSense and compile-time error checking
+- **🔧 Custom Integration**: Direct integration with existing systems and databases
+- **🚀 Conditional Logic**: Different setups for development vs production
+- **📦 No External Files**: Self-contained bot definitions
+
+### Quick Example
+
+```python
+from nexion import Bot, HttpConfig
+from nexion.tools import tool
+
+@tool("greet", "Greet users with personalized messages")
+def greet_user(name: str, style: str = "friendly") -> str:
+    styles = {
+        "friendly": f"Hello {name}! 👋 Great to meet you!",
+        "formal": f"Good day, {name}. Pleased to meet you.",
+        "casual": f"Hey {name}! What's up?"
+    }
+    return styles.get(style, styles["friendly"])
+
+# Create bot programmatically
+bot = Bot(
+    bot_id="my-programmatic-bot",
+    model="openai:gpt-4o-mini",
+    openai_api_key="env:OPENAI_API_KEY",
+    adapters=[HttpConfig(endpoint="/api/chat")],
+    tools=[greet_user],  # Pass function objects directly!
+    system_prompt_path="prompts/system.md"
+)
+
+if __name__ == "__main__":
+    bot.run()  # Start the bot
+```
+
+### Advanced Features
+
+**Mixed Tool Types:**
+```python
+tools=[
+    my_custom_function,           # Decorated function object
+    "mcp__filesystem__read_file",   # String reference to MCP tool
+]
+```
+
+**Dynamic Bot Creation:**
+```python
+def create_user_bot(user_id: str, preferences: dict) -> Bot:
+    return Bot(
+        bot_id=f"user-{user_id}",
+        model=preferences.get("model", "openai:gpt-4o-mini"),
+        tools=get_user_tools(user_id),
+        adapters=[HttpConfig(endpoint=f"/api/{user_id}")]
+    )
+```
+
+**Inline MCP Configuration:**
+```python
+Bot(
+    # ... other config ...
+    mcp_config={
+        "filesystem": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+        }
+    }
+)
+```
+
+### Complete Example
+
+Check out the [Programmatic SDK Example](examples/programmatic-sdk/) for a full-featured demonstration with custom tools, environment variable handling, and comprehensive documentation.
+
+### Contributing to the SDK
+
+We encourage contributions to expand the programmatic SDK:
+
+- **🔌 New Adapters**: Add support for more platforms (Slack, WhatsApp, etc.)
+- **🛠️ Tool Utilities**: Create helper functions for common tool patterns
+- **🏗️ Configuration Builders**: Develop fluent APIs for complex setups
+- **⚡ Runtime Extensions**: Add support for dynamic bot modification
 
 ## 📚 Configuration Reference
 

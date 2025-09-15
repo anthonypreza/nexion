@@ -44,21 +44,21 @@ class ToolRegistry:
 
         return schemas
 
-    async def execute_tool(self, name: str, **kwargs) -> ToolResult:
+    async def execute_tool(self, tool_name: str, **kwargs) -> ToolResult:
         """Execute a tool by name with arguments."""
         try:
-            self.logger.info(f"🔧 Running tool '{name}' with args={kwargs}")
+            self.logger.info(f"🔧 Running tool '{tool_name}' with args={kwargs}")
             # Check BaseTool instances first
-            if name in self._tools:
-                res = await self._tools[name].execute(**kwargs)
+            if tool_name in self._tools:
+                res = await self._tools[tool_name].execute(**kwargs)
                 self.logger.info(
-                    f"✅ Tool '{name}' result: {res.result if res.success else res.error}"
+                    f"✅ Tool '{tool_name}' result: {res.result if res.success else res.error}"
                 )
                 return res
 
             # Check decorated functions
-            elif name in self._functions:
-                func = self._functions[name]
+            elif tool_name in self._functions:
+                func = self._functions[tool_name]
 
                 # Execute function (handle both sync and async)
                 import asyncio
@@ -69,19 +69,19 @@ class ToolRegistry:
                     result = func(**kwargs)
 
                 res = ToolResult(success=True, result=result)
-                self.logger.info(f"✅ Tool '{name}' result: {result}")
+                self.logger.info(f"✅ Tool '{tool_name}' result: {result}")
                 return res
 
             else:
                 res = ToolResult(
                     success=False,
-                    error=f"Tool '{name}' not found. Available tools: {self.list_tools()}",
+                    error=f"Tool '{tool_name}' not found. Available tools: {self.list_tools()}",
                 )
                 self.logger.warning(res.error)
                 return res
 
         except Exception as e:
-            err = f"Error executing tool '{name}': {str(e)}"
+            err = f"Error executing tool '{tool_name}': {str(e)}"
             self.logger.error(err)
             return ToolResult(success=False, error=err)
 

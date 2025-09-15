@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from ..config.bridge import get_config_bridge
-from ..core.bot_manager import BotManager, get_bot_manager
+from ..core.bot_manager import get_bot_manager
 from ..core.types import Channel, MessageEvent
 from ..utils.logging import get_logger
 
@@ -69,14 +69,13 @@ async def create_route_auth(path: str):
 def create_chat_handler(path: str):
     """Create a chat handler function for a specific path."""
 
-    async def chat_handler(
-        payload: ChatIn, bot_manager: BotManager = Depends(get_bot_manager)
-    ):
+    async def chat_handler(payload: ChatIn):
         logger.info(
             f"Processing chat request on {path} from user {payload.user_id}: {payload.message[:50]}{'...' if len(payload.message) > 50 else ''}"
         )
 
-        # Get the bot for this path
+        # Get the bot manager and then the bot for this path
+        bot_manager = await get_bot_manager()
         runtime = bot_manager.get_bot_for_http_path(path)
         if not runtime:
             raise HTTPException(
@@ -108,11 +107,11 @@ def create_history_handler(path: str):
     async def history_handler(
         user_id: str,
         thread_id: str | None = None,
-        bot_manager: BotManager = Depends(get_bot_manager),
     ):
         logger.info(f"Fetching conversation history for user {user_id} on path {path}")
 
-        # Get the bot for this path
+        # Get the bot manager and then the bot for this path
+        bot_manager = await get_bot_manager()
         runtime = bot_manager.get_bot_for_http_path(path)
         if not runtime:
             raise HTTPException(
@@ -133,7 +132,7 @@ def create_history_handler(path: str):
                 workspace_id=workspace_id,
                 bot_id=bot_id,
                 channel_ref="http",
-                user_ref=user_id,
+                chat_ref=user_id,
                 thread_id=thread_id,
             )
 
@@ -208,14 +207,13 @@ def create_history_handler(path: str):
 def create_new_chat_handler(path: str):
     """Create a new chat handler function for a specific path."""
 
-    async def new_chat_handler(
-        payload: NewChatIn, bot_manager: BotManager = Depends(get_bot_manager)
-    ):
+    async def new_chat_handler(payload: NewChatIn):
         logger.info(
             f"Creating new conversation for user {payload.user_id} on path {path}"
         )
 
-        # Get the bot for this path
+        # Get the bot manager and then the bot for this path
+        bot_manager = await get_bot_manager()
         runtime = bot_manager.get_bot_for_http_path(path)
         if not runtime:
             raise HTTPException(
@@ -243,7 +241,7 @@ def create_new_chat_handler(path: str):
                 workspace_id=workspace_id,
                 bot_id=bot_id,
                 channel_ref="http",
-                user_ref=payload.user_id,
+                chat_ref=payload.user_id,
                 thread_id=new_thread_id,
             )
 
@@ -263,9 +261,10 @@ def create_new_chat_handler(path: str):
     return new_chat_handler
 
 
-async def register_dynamic_routes():
+async def register_dynamic_routes(settings=None, bot_manager=None):
     """Register dynamic routes based on bot manager configuration."""
-    bot_manager = await get_bot_manager()
+    if bot_manager is None:
+        bot_manager = await get_bot_manager(settings=settings)
 
     for path, bot_id in bot_manager.http_routes.items():
         logger.info(f"Registering HTTP route: {path}")
@@ -311,9 +310,10 @@ async def register_dynamic_routes():
 def create_bot_ui_handler(path: str, bot_id: str):
     """Create a UI handler function for a specific bot."""
 
-    async def bot_ui_handler(bot_manager: BotManager = Depends(get_bot_manager)):
+    async def bot_ui_handler():
         """Chat UI for a specific bot"""
         # Get all available bots for navigation
+        bot_manager = await get_bot_manager()
         all_routes = list(bot_manager.http_routes.items())
 
         return HTMLResponse(create_bot_ui_html(path, bot_id, all_routes))
@@ -637,8 +637,9 @@ def create_bot_ui_html(current_path: str, current_bot_id: str, all_routes: list)
 
 
 @router.get("/", response_class=HTMLResponse)
-async def main_ui(bot_manager: BotManager = Depends(get_bot_manager)):
+async def main_ui():
     """Main UI showing all available bots"""
+    bot_manager = await get_bot_manager()
     all_routes = list(bot_manager.http_routes.items())
 
     if len(all_routes) == 1:

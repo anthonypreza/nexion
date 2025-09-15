@@ -72,13 +72,29 @@ class BotManager:
                 merged_config = {**global_config, **channel.adapter_config}
                 channel_configs[channel.channel] = merged_config
 
+        # Handle inline system prompts
+        system_prompt = None
+        system_prompt_path = "prompts/system.md"
+
+        if bot_config.system_prompt:
+            if bot_config.system_prompt.startswith("inline:"):
+                # Extract inline content
+                system_prompt = bot_config.system_prompt[7:]  # Remove "inline:" prefix
+                system_prompt_path = (
+                    "prompts/system.md"  # Keep default path as fallback
+                )
+            else:
+                # It's a file path
+                system_prompt_path = bot_config.system_prompt
+
         return BotSettings(
             bot_id=bot_config.id,
             openai_api_key=openai_key,
             anthropic_api_key=anthropic_key,
             model=bot_config.model,
             max_tokens=max_tokens,
-            system_prompt_path=bot_config.system_prompt or "prompts/system.md",
+            system_prompt=system_prompt,
+            system_prompt_path=system_prompt_path,
             channel_configs=channel_configs,
             tools=bot_config.tools,
         )
@@ -187,16 +203,98 @@ class BotManager:
         return self.workspace_config.workspace
 
 
+def _process_env_vars(data):
+    """Process environment variable substitution for programmatic settings."""
+    import os
+
+    from ..utils.logging import get_logger
+
+    logger = get_logger("bot_manager")
+
+    if isinstance(data, dict):
+        return {key: _process_env_vars(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [_process_env_vars(item) for item in data]
+    elif isinstance(data, str) and data.startswith("env:"):
+        env_var = data[4:]  # Remove "env:" prefix
+        value = os.getenv(env_var)
+        if value is None:
+            logger.warning(f"Environment variable {env_var} not set")
+        return value
+    else:
+        return data
+
+
+def _create_workspace_from_settings(settings: BotSettings) -> WorkspaceConfig:
+    """Create a WorkspaceConfig from programmatic BotSettings."""
+    from ..config.yaml import BotConfig, ChannelConfig, ProviderConfig
+
+    # Process environment variables in settings
+    resolved_openai_key = _process_env_vars(settings.openai_api_key)
+    resolved_anthropic_key = _process_env_vars(settings.anthropic_api_key)
+    resolved_channel_configs = _process_env_vars(settings.channel_configs)
+
+    # Create provider configs from settings
+    providers = {}
+    if resolved_openai_key:
+        providers["openai"] = ProviderConfig(
+            api_key=resolved_openai_key, max_tokens=settings.max_tokens
+        )
+    if resolved_anthropic_key:
+        providers["anthropic"] = ProviderConfig(
+            api_key=resolved_anthropic_key, max_tokens=settings.max_tokens
+        )
+
+    # Create channel configs from settings
+    channels = []
+    for channel_key, channel_data in resolved_channel_configs.items():
+        channels.append(ChannelConfig(channel=channel_key, adapter_config=channel_data))
+
+    # Create bot config
+    # Use system_prompt_path as the field name, but store inline content if available
+    system_prompt_field = settings.system_prompt_path
+    if settings.system_prompt:
+        # Store inline prompt content in the system_prompt field
+        # This will be handled specially in _create_settings_for_bot
+        system_prompt_field = f"inline:{settings.system_prompt}"
+
+    bot_config = BotConfig(
+        id=settings.bot_id,
+        model=settings.model,
+        system_prompt=system_prompt_field,
+        channels=channels,
+        tools=settings.tools,
+    )
+
+    # Create workspace config
+    workspace_config = WorkspaceConfig(
+        workspace=settings.bot_id,
+        bots=[bot_config],
+        providers=providers,
+        adapters={},  # Adapters are handled through channel_configs
+    )
+
+    return workspace_config
+
+
 # Global bot manager instance
 _bot_manager: BotManager | None = None
 
 
-async def get_bot_manager(config_path: Path | None = None) -> BotManager:
+async def get_bot_manager(
+    config_path: Path | None = None, settings: BotSettings | None = None
+) -> BotManager:
     """Get or create the global bot manager."""
     global _bot_manager
     if _bot_manager is None:
-        bridge = get_config_bridge(config_path)
-        workspace_config = bridge.get_yaml_config()
+        if settings:
+            # Create a single-bot workspace from programmatic settings
+            workspace_config = _create_workspace_from_settings(settings)
+        else:
+            # Use YAML configuration
+            bridge = get_config_bridge(config_path)
+            workspace_config = bridge.get_yaml_config()
+
         store = SQLiteStore()
         await store.initialize()  # Initialize the database schema
         _bot_manager = BotManager(workspace_config, store)

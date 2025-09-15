@@ -8,6 +8,7 @@ from ..adapters.discord import start_discord_websockets, stop_discord_websockets
 from ..adapters.http import register_dynamic_routes
 from ..adapters.http import router as http_router
 from ..adapters.telegram import start_telegram_polling, stop_telegram_polling
+from ..config.settings import BotSettings
 from ..config.yaml import ConfigLoader
 from ..core.bot_manager import get_bot_manager
 from ..utils.logging import get_logger, setup_logging
@@ -25,11 +26,22 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
 
-    # Get config path from environment (set by run function)
+    # Get config path and settings from environment (set by run function)
     import os
 
     config_path_str = os.environ.get("NEXION_CONFIG_PATH")
     config_path = Path(config_path_str) if config_path_str else None
+
+    settings_path_str = os.environ.get("NEXION_SETTINGS_PATH")
+    settings = None
+    if settings_path_str and Path(settings_path_str).exists():
+        import json
+
+        from ..config.settings import BotSettings
+
+        with open(settings_path_str) as f:
+            settings_dict = json.load(f)
+            settings = BotSettings(**settings_dict)
 
     # Peek at YAML for optional log_level before initializing logging
     try:
@@ -49,7 +61,7 @@ async def lifespan(app: FastAPI):
 
     # Startup
     logger.info("🚀 Starting Nexion server...")
-    bot_manager = await get_bot_manager(config_path)
+    bot_manager = await get_bot_manager(config_path, settings)
     # Summarize providers/models/tools for all bots after initialization
     try:
         for bot_id, agent in bot_manager.bots.items():
@@ -124,7 +136,23 @@ async def lifespan(app: FastAPI):
 
 
 async def create_app() -> FastAPI:
-    await register_dynamic_routes()
+    # Register routes before creating the app
+    import os
+
+    settings_path_str = os.environ.get("NEXION_SETTINGS_PATH")
+
+    settings = None
+    if settings_path_str and Path(settings_path_str).exists():
+        import json
+
+        from ..config.settings import BotSettings
+
+        with open(settings_path_str) as f:
+            settings_dict = json.load(f)
+            settings = BotSettings(**settings_dict)
+
+    # Pre-register routes so they're available when the app starts
+    await register_dynamic_routes(settings=settings)
 
     app = FastAPI(title="Nexion", lifespan=lifespan)
     app.include_router(http_router)
@@ -136,14 +164,26 @@ async def create_app() -> FastAPI:
     return app
 
 
-def run(port: int = 8080, config_path: Path | None = None):
-    # Store port and config path for the lifespan function
+def run(
+    port: int = 8080, config_path: Path | None = None, settings: BotSettings = None
+):
+    # Store port, config path, and settings for the lifespan function
     import asyncio
     import os
+    import tempfile
 
     os.environ["NEXION_SERVER_PORT"] = str(port)
     if config_path:
         os.environ["NEXION_CONFIG_PATH"] = str(config_path)
+
+    # Store settings in a temporary file for the lifespan function to access
+    if settings:
+        import json
+
+        settings_dict = settings.model_dump()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(settings_dict, f, indent=2)
+            os.environ["NEXION_SETTINGS_PATH"] = f.name
 
     # Create the app with dynamic routes
     app = asyncio.run(create_app())
