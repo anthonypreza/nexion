@@ -3,8 +3,9 @@
 ## Project Structure & Module Organization
 - `nexion/` — core source code
   - `adapters/` (HTTP, Telegram, Discord), `core/` (agent runtime, server), `providers/` (OpenAI, Anthropic),
-    `tools/` (registry, decorators, MCP integration), `storage/` (SQLite + models), `config/` (YAML/.env bridge), `utils/` (logging).
-- `examples/` — runnable sample bots (see `examples/discord-bot`, `examples/telegram-bot`).
+    `tools/` (registry, decorators, MCP integration), `storage/` (SQLite + models), `config/` (YAML/.env bridge),
+    `sdk/` (programmatic bot creation), `utils/` (logging).
+- `examples/` — runnable sample bots (see `examples/discord-bot`, `examples/telegram-bot`, `examples/programmatic-sdk`).
 - Root docs: `README.md`, `CLAUDE.md`, `AGENTS.md` (this file).
 
 ## Build, Test, and Development Commands
@@ -59,6 +60,14 @@
 - Embedded resources in MCP responses are fetched via `read_resource` and returned as text when possible (e.g., GitHub file contents).
 - Logs include MCP content summaries and fetched resource summaries at INFO (previews at DEBUG).
 
+## Programmatic SDK
+- Alternative to YAML configuration for pure Python bot creation.
+- **Bot class**: `Bot(bot_id="x", model="openai:gpt-4o-mini", tools=[...], adapters=[...])` in `nexion/sdk/bot.py`.
+- **Inline system prompts**: Use `system_prompt="..."` instead of file paths for convenience.
+- **Mixed tool types**: Function objects with `@tool` decorator + string references to MCP tools.
+- **Type safety**: Full IDE support, autocomplete, compile-time error checking.
+- **Dynamic creation**: Runtime conditions, factory patterns, conditional logic.
+
 ## Architecture Overview (Brief)
 - Provider chosen by `model` prefix (`openai:`/`anthropic:`).
 - OpenAI uses the Responses API; Anthropic uses Messages API with tool_use/tool_result.
@@ -66,3 +75,4 @@
 - Discord adapter: Full WebSocket integration with resume/reconnect, bot filtering, and session management.
 - Telegram adapter: Polling-based with no webhook requirements.
 - HTTP adapter: Dynamic REST APIs and multi-bot web interfaces.
+- **Programmatic + YAML**: Both configuration approaches are fully supported and equivalent.

@@ -42,7 +42,7 @@ pre-commit run --all-files  # Run all pre-commit hooks manually
 
 ## Architecture Overview
 
-Nexion is an AI agent framework for building multi-channel bots via YAML configuration. Currently implements **Phase 1** of the system design with full multi-bot support, dynamic routing, and persistent conversations.
+Nexion is an AI agent framework for building multi-channel bots via YAML configuration or programmatic Python SDK. Currently implements **Phase 1** of the system design with full multi-bot support, dynamic routing, and persistent conversations.
 
 ### Current Implementation (Phase 1)
 
@@ -87,6 +87,14 @@ Nexion is an AI agent framework for building multi-channel bots via YAML configu
 - `nexion/storage/base.py` - Abstract base classes for storage interfaces
 - Automatic database schema initialization and conversation tracking
 - **Chat-centric conversations**: Conversations are keyed by chat/channel ID for persistent context
+
+**Programmatic SDK:**
+- `nexion/sdk/bot.py` - `Bot` class for pure Python bot creation without YAML
+- `nexion/sdk/adapters.py` - Adapter configuration classes (`HttpConfig`, `DiscordConfig`, etc.)
+- Supports mixed tool types: function objects with `@tool` decorator and string references
+- Inline MCP server configuration via `mcp_config` parameter
+- Environment variable resolution with `env:` prefix handling
+- Full type safety and IDE support for programmatic configuration
 
 ### Planned Architecture (Full System Design)
 
@@ -160,6 +168,47 @@ Bot behavior is defined in `bot.yml` with these key sections:
 - YAML configuration with environment variable substitution
  - MCP (`mcp` Python package) for Model Context Protocol client support
 
+## Programmatic SDK Usage
+
+The programmatic SDK allows creating bots entirely in Python without YAML configuration:
+
+**Basic bot creation:**
+```python
+from nexion import Bot, HttpConfig
+from nexion.tools import tool
+
+@tool("my_tool", "Description for the LLM")
+def my_tool(param: str) -> str:
+    return f"Processed: {param}"
+
+bot = Bot(
+    bot_id="my-bot",
+    model="openai:gpt-4o-mini",
+    openai_api_key="env:OPENAI_API_KEY",
+    tools=[my_tool, "mcp__filesystem__read_file"],
+    adapters=[HttpConfig(endpoint="/api/chat")],
+    mcp_config={
+        "filesystem": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+        }
+    }
+)
+
+bot.run()
+```
+
+**Key differences from YAML approach:**
+- Tools can be function objects or string references
+- Environment variables use `env:` prefix like YAML
+- MCP configuration is inline via `mcp_config` parameter
+- Full type safety and IDE support
+- Dynamic bot creation based on runtime conditions
+
+**When to use programmatic vs YAML:**
+- **Programmatic**: Dynamic bot creation, complex business logic, Python application integration
+- **YAML**: Simple configuration, declarative setup, configuration management
+
 ## Implementation Notes
 
 When working with this codebase:
@@ -168,4 +217,5 @@ When working with this codebase:
 - New features should align with the target architecture (tools, flows, KB, MCP)
 - Consider the planned database schema when adding persistence features
 - CLI commands should follow the `nexctl` pattern documented in the system design
- - For MCP, avoid logging secrets (redact headers) and ensure tool results are serialized using Pydantic encoders (v1/v2 compatible).
+- For MCP, avoid logging secrets (redact headers) and ensure tool results are serialized using Pydantic encoders (v1/v2 compatible)
+- **Programmatic SDK**: Both YAML and programmatic approaches should be supported and equivalent in functionality
