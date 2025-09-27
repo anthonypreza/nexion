@@ -4,6 +4,23 @@
 
 Nexion lets you build AI-powered bots using simple YAML configuration and deploy them to HTTP endpoints, Telegram, and Discord. Perfect for creating support bots, documentation assistants, and interactive AI experiences.
 
+## ⚠️ Project Status: Experimental
+
+- Not production-ready: the project is under active development and APIs, configuration, and behavior may change without notice.
+- Expect breaking changes and incomplete features while the design stabilizes.
+- Use for prototypes, experiments, and local development — avoid production deployments for now.
+- Pin versions or specific commits if you rely on behavior; review changes before updating.
+- Feedback and contributions are welcome as we iterate.
+
+## 🔐 Security Guidance
+
+- Remote MCP servers you do not control are a security risk. They may read/write files, make network requests, or exfiltrate data depending on the tools they expose.
+- Only enable trusted tools and MCP servers. Prefer local or self-hosted MCP servers that you operate.
+- Apply least privilege: enable the minimum set of tools per-bot and per-environment; review `mcp.json` and tool names (`mcp__<server>__<tool>`) before use.
+- Keep secrets in `.env` and reference them via `env:` in config; never commit secrets.
+- Use separate API keys for development vs. production and rotate them regularly.
+- Treat HTTP adapter API keys as credentials; do not expose them in client code or public demos.
+
 ## ✨ Current Features
 
 - **🤖 Multi-LLM Support**: OpenAI (Responses API) and Anthropic integration with your API keys
@@ -489,6 +506,7 @@ Notes:
   - Inline: `Bearer env:VAR` or `Bearer ${env:VAR}` (applies to headers and URL)
   - Also applied to `env` values for stdio servers.
 - Some servers return EmbeddedResource items; Nexion automatically calls MCP `read_resource` to fetch and return real content (e.g., GitHub file text).
+ - Security: Only configure MCP servers you trust. Avoid arbitrary remote servers from the internet; untrusted tools can read/write files or exfiltrate data. Prefer local or self‑hosted servers and enable the minimum necessary tools.
 
 ## 🛠️ CLI Commands
 
